@@ -1,11 +1,14 @@
 {
     "name": "jdvorak23/bootstrap5-form-renderer",
     "minimum-stability": "stable",
-    "description": "Renderer",
+    "description": "Bootstrap5 form renderer for Nette",
     "autoload": {
         "psr-4": {
             "Jdvorak23\\Bootstrap5FormRenderer\\": "src/"
         }
     },
-    "require": {}    
+    "require": {
+        "php": ">=8.0"
+    },
+    "license": ["MIT"]
 }
