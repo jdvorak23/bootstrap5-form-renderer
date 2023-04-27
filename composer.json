@@ -1,0 +1,10 @@
+{
+    "name": "jdvorak23/bootstrap5-form-renderer",
+    "description": "Renderer",
+    "autoload": {
+        "psr-4": {
+            "Jdvorak23\\Bootstrap5FormRenderer\\": "src/"
+        }
+    },
+    "require": {}
+}
