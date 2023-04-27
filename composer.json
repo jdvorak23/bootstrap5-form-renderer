@@ -1,7 +1,17 @@
 {
     "name": "jdvorak23/bootstrap5-form-renderer",
-    "minimum-stability": "stable",
     "description": "Bootstrap5 form renderer for Nette",
+    "keywords": ["nette", "form", "renderer"],
+    "license": ["Unlicense"],
+    "homepage" : "https://github.com/jdvorak23/bootstrap5-form-renderer",
+    "authors": [
+        {
+            "name": "Jan Dvořák",
+            "email": "dvorakj3@post.cz",
+            "homepage": "http://www.jan-dvorak.cz",
+            "role": "Developer"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Jdvorak23\\Bootstrap5FormRenderer\\": "src/"
@@ -9,6 +19,5 @@
     },
     "require": {
         "php": ">=8.0"
-    },
-    "license": ["MIT"]
+    }
 }
