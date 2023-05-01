@@ -10,9 +10,12 @@ namespace Jdvorak23\Bootstrap5FormRenderer;
 
 
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderer;
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\BaseControlRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\GroupRenderer;
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\HtmlWtf;
 use Nette;
 use Nette\Forms\ControlGroup;
+use Nette\Forms\Controls\BaseControl;
 use Nette\Forms\Form;
 use Nette\HtmlStringable;
 use Nette\Utils\Html;
@@ -60,6 +63,7 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
     /** @var Nette\Forms\Form */
     protected Form $form;
 
+    public array $defaultGroupOptions = [];
     public ControlRenderer $controlRenderer;
 
 
@@ -84,7 +88,7 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
     {
         foreach ($group->getControls() as $control)
         {
-            if($control->getOption('type') === 'hidden')
+            if(!$control instanceof BaseControl || $control->getOption('type') === 'hidden')
                 continue;
             if(is_null($control->getOption($option)))
                 $control->setOption($option, $value);
@@ -290,77 +294,49 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
      * Kompletně přepsáno.
      * @param  Nette\Forms\Container|Nette\Forms\ControlGroup  $parent
      */
-    public function renderControls($parent): string {
-        if (!($parent instanceof Nette\Forms\Container || $parent instanceof Nette\Forms\ControlGroup)) {
-            throw new Nette\InvalidArgumentException('Argument must be Nette\Forms\Container or Nette\Forms\ControlGroup instance.');
-        }
-        // Nastavení inputGroup - nejdříve nutno proiterovat všechna controls v Group
-        // a nastavit jim options 'firstInInputGroup' a 'lastInInputGroup'.
-        // Bez těchto nastavení by pak ControlRenderer nevěděl, že má/nemá zaoblit rohy.
+    public function renderControls(Nette\Forms\Container|Nette\Forms\ControlGroup $parent): string
+    {
+
+        $options = $parent instanceof Nette\Forms\Container ? $this->defaultGroupOptions : $parent->getOptions();
+        // Default Group grid, from option if set else from constructor
+        $options['row'] = $options['row'] ?? $this->rows;
+
+        // Nastavení inputGroup
         // Dále se nastaví floatingLabels a clientValidation
+        // Nastavení html factory
         $prevControl = null;
         $inInputGroup = false;
-        $defaultFloatingLabels = $this->floatingLabels;
-        if($parent instanceof Nette\Forms\ControlGroup && !is_null($parent->getOption('floatingLabels')))
-            $defaultFloatingLabels = (bool) $parent->getOption('floatingLabels');
-        $singleMode = $this->inputGroupSingleMode;
-        if($parent instanceof Nette\Forms\ControlGroup && !is_null($parent->getOption('inputGroupSingleMode')))
-            $singleMode = (bool) $parent->getOption('inputGroupSingleMode');
+
+        $defaultFloatingLabels = isset($options['floatingLabels']) ? $options['floatingLabels'] !== false : $this->floatingLabels;
+        $singleMode = isset($options['inputGroupSingleMode']) ? $options['inputGroupSingleMode'] !== false : $this->inputGroupSingleMode;
+
         foreach ($parent->getControls() as $control) {
             if ($control->getOption('rendered') || $control->getOption('type') === 'hidden' || $control->getForm(false) !== $this->form)
                 continue;
-            // Nastavení inputGroup
-            $inputGroup = $control->getOption('inputGroup');
-            // Stavy mohou znamenat něco jiného podle inputGroupSingleMode
-            if ($inputGroup === null) { //Pokud je null, tak záleží na předchozím controlu, jestli je nebo není v inputGroup.
-                if($singleMode){ // Pokud je null a je singleMode, vytváří zde inputGroup
-                    $control->setOption('firstInInputGroup', true);
-                    $control->setOption('lastInInputGroup', true);
-                    $control->setOption('inputGroup', true); // Přenastavuje option podle reality vykreslování
-                    $inInputGroup = true;
-                }elseif($inInputGroup) { // Jinak, pokud je v inputGroup, pak předchozí není last, jako last je nastaven aktuálně iterovaný control.
-                    $prevControl->setOption('lastInInputGroup', false);
-                    $control->setOption('lastInInputGroup', true);
-                }
-            } elseif ($inputGroup === false) { //Není v inputGroup v každém případě
-                $inInputGroup = false;
-            }else{ // Pokud je 'inputGroup' nastavena na true, singleMode je zapnuté a je existující inputGroup, pak se do ní vloží
-                if($inputGroup === true && $singleMode && $inInputGroup){
-                    $prevControl->setOption('lastInInputGroup', false);
-                    $control->setOption('lastInInputGroup', true);
-                    $control->setOption('inputGroup', null); // Přenastavuje option podle reality vykreslování
-                }else { //Jinak je v inputGroup, a je první v této inputGroup - nastavení first a last
-                    $control->setOption('firstInInputGroup', true);
-                    $control->setOption('lastInInputGroup', true);
-                    $inInputGroup = true;
-                }
-            }
+            // Nastavení input group
+            $inInputGroup = $this->setInputGroup($control, $prevControl, $singleMode, $inInputGroup);
             $prevControl = $control;
-
             // Nastavení floatingLabels.
             // Pokud je option null, nastaví podle globálního $defaultFloatingLabels (buď podle option na Group, nebo podle konstruktoru).
-            // Pokud je cokoli mimo false a null, je nastaveno na true.
-            if (is_null($control->getOption('floatingLabel')))
-                $control->setOption('floatingLabel', $defaultFloatingLabels);
-            elseif ($control->getOption('floatingLabel') !== false)
-                $control->setOption('floatingLabel', true);
-            // Tj. teď už je option 'floatingLabel' vždy nastavené a bool.
+            $floatingLabel = $control->getOption('floatingLabel') === null ? $defaultFloatingLabels : $control->getOption('floatingLabel') !== false;
+            $control->setOption('floatingLabel', $floatingLabel);
             // Nastavení clientValidation
-            $control->setOption('clientValidation', $this->clientValidation);
+            $control->setOption('clientValidation', $control->getOption('clientValidation') ?? $this->clientValidation);
+            // Nastavení vlastní factory a rendereru
+            $htmlFactory = $control->getOption('htmlFactory');
+            if(!$htmlFactory instanceof HtmlWtf) {
+                $renderer = $control->getOption('renderer');
+                $htmlFactory = $renderer instanceof BaseControlRenderer && $renderer->htmlFactory
+                    ? $renderer->htmlFactory
+                    : new HtmlWtf($this->wrappers);
+                $control->setOption('htmlFactory', $htmlFactory);
+            }
+            // Factory musí mít kde brát options, v případě controlu je lepší vložit samotný control, pak je jistota že je vždy options updated.
+            // Zároveň přepíše na správný control, kdyby přišla nesmyslná htmlFactory od uživatele.
+            $htmlFactory->setOptions($control);
         }
 
-        // $row se nastaví podle globálního $this->rows - aby bylo nastaveno i pro "virtuální Group",
-        // tedy skupinu controls, co jsou přímo ve formu a ne v Group.
-        $row = $this->rows;
-        // Pokud je $parent ControlGroup a option 'row' není null, nastaví se toto option do $row
-        if ($parent instanceof Nette\Forms\ControlGroup && !is_null($parent->getOption('row')))
-            $row = $parent->getOption('row');
-        // Vytvoří model pro vytváření struktury horních wrapperů.
-        $groupRenderer = new GroupRenderer(
-            $this->wrappers,
-            $row,
-            $parent instanceof Nette\Forms\ControlGroup ? $parent->getOption('col') : null);
-
+        $groupRenderer = new GroupRenderer($this->wrappers, $options);
         foreach ($parent->getControls() as $control) {
             if ($control->getOption('rendered') || $control->getOption('type') === 'hidden' || $control->getForm(false) !== $this->form)
                 continue;
@@ -369,15 +345,16 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
             // Vyrenderuje control do wrapperu.
             $this->renderControl($control, $wrapper);
         }
+        // Vyrenderuje celou group
         return $groupRenderer->getContainer()->render(0);
     }
 
     /**
      * Vyrenderuje $control (a jeho 'dolní' wrappery) do wrapperu $container
-     * @param Nette\Forms\Controls\BaseControl $control
+     * @param BaseControl $control
      * @param Html $container
      */
-    public function renderControl(Nette\Forms\Controls\BaseControl $control, Html $container)
+    public function renderControl(BaseControl $control, Html $container)
     {
         $this->controlRenderer = $this->controlRenderer ?? new ControlRenderer($this->wrappers);
         $this->controlRenderer->render($control, $container);
@@ -392,6 +369,37 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
     public function getWrapper(string $name): Html
     {
         return $this->wrappers->getWrapper($name)?: Html::el();
+    }
+
+    protected function setInputGroup(BaseControl $control, BaseControl|null $prevControl, bool $singleMode, bool $inInputGroup): bool
+    {
+        // Nastavení inputGroup
+        $inputGroup = $control->getOption('inputGroup');
+        // Stavy mohou znamenat něco jiného podle inputGroupSingleMode
+        if ($inputGroup === null) { //Pokud je null, tak záleží na předchozím controlu, jestli je nebo není v inputGroup.
+            if($singleMode){ // Pokud je null a je singleMode, vytváří zde inputGroup
+                $control->setOption('firstInInputGroup', true);
+                $control->setOption('lastInInputGroup', true);
+                $control->setOption('inputGroup', true); // Přenastavuje option podle reality vykreslování
+                $inInputGroup = true;
+            }elseif($inInputGroup) { // Jinak, pokud je v inputGroup, pak předchozí není last, jako last je nastaven aktuálně iterovaný control.
+                $prevControl->setOption('lastInInputGroup', false);
+                $control->setOption('lastInInputGroup', true);
+            }
+        } elseif ($inputGroup === false) { //Není v inputGroup v každém případě
+            $inInputGroup = false;
+        }else{ // Pokud je 'inputGroup' nastavena na true, singleMode je zapnuté a je existující inputGroup, pak se do ní vloží
+            if($inputGroup === true && $singleMode && $inInputGroup){
+                $prevControl->setOption('lastInInputGroup', false);
+                $control->setOption('lastInInputGroup', true);
+                $control->setOption('inputGroup', null); // Přenastavuje option podle reality vykreslování
+            }else { //Jinak je v inputGroup, a je první v této inputGroup - nastavení first a last
+                $control->setOption('firstInInputGroup', true);
+                $control->setOption('lastInInputGroup', true);
+                $inInputGroup = true;
+            }
+        }
+        return $inInputGroup;
     }
 
 }

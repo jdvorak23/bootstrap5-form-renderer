@@ -2,6 +2,7 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers;
 
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Nette\Utils\Html;
 
 /**
@@ -10,32 +11,40 @@ use Nette\Utils\Html;
  */
 class ButtonRenderer extends BaseControlRenderer
 {
-    protected function renderControl(Html $container){
-        $this->renderParent();
-        $this->renderDescription($this->parent, 'description buttonContainer');
-    }
-    public function renderToGroup(Html $container){
-        $this->inputGroupWrapper = $this->getWrapper("wrapper", 'inputGroup wrapper shrink', $container);
-        $this->renderParent($this->inputGroupWrapper);
-        $this->renderDescription($this->parent, 'description inputGroupContainer');
-    }
-    protected function setupElement()
+    protected function renderControl(Html $container): void
     {
-        parent::setupElement();
+        $this->renderParent();
+        $this->renderDescription($this->parent);
+    }
+    public function renderToGroup(Html $container): void
+    {
+       // $this->inputGroupElement = $this->getWrapper("wrapper", 'inputGroup wrapper shrink', $container);
+        $this->renderInputGroupWrapper();
+        $this->renderParent($this->inputGroupWrapper);
+        $this->renderDescription($this->parent);
+    }
+    protected function setupElement(): void
+    {
         //Pokud je v inputGroup, nastaví se tlačítku speciální třída, jinak podle typu cotnrol
-        $this->inputGroup
-            ? $this->element->class($this->wrappers->getValue("control .inputGroupButton"), true)
-            : $this->element->class($this->wrappers->getValue("control .{$this->element->type}"), true);
+        $this->isInputGroup
+            ? $this->htmlFactory->setClasses($this->element, 'control .inputGroupButton')
+            : $this->htmlFactory->setClasses($this->element, "control .{$this->element->type}");
         // Tlačítku můžeme přidat vlastní třídu, jako všem controls přes option '.control'
-        if(is_string($this->control->getOption('.control')) )
-            $this->element->class($this->control->getOption('.control'), true);
+        $this->element->setClasses($this->control->getOption('.control'));
+    }
+    protected function createInputGroupWrapper(): RendererHtml
+    {
+        if($this->isInputGroup)
+            return $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper shrink');
+        return RendererHtml::el();
     }
 
-    protected function createParentElement(): Html
+    protected function createParentElement(): RendererHtml
     {
-        return $this->inputGroup
-            ? $this->getWrapper("parent", 'inputGroup container standard')
-            : $this->getWrapper("parent", 'pair buttonContainer') ;
+        return $this->isInputGroup
+            ? $this->htmlFactory->createWrapper("parent", 'inputGroup container standard')
+            : $this->htmlFactory->createWrapper("parent", 'container button') ;
     }
+
 
 }

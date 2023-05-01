@@ -3,6 +3,7 @@
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers;
 
 
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\BaseControlRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\ButtonRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\CheckBoxRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\FloatingControlRenderer;
@@ -31,19 +32,21 @@ class ControlRenderer
      */
     public function render(Nette\Forms\Controls\BaseControl $control, Html $container) : void
     {
-        if ($control instanceof CheckboxList || $control instanceof RadioList) {
-            $renderer = new ListControlRenderer($this->wrappers, $control);
+        if($control->getOption('renderer') instanceof BaseControlRenderer){
+            $renderer = $control->getOption('renderer');
+        }elseif ($control instanceof CheckboxList || $control instanceof RadioList) {
+            $renderer = new ListControlRenderer();
         } elseif ($control instanceof Checkbox) {
-            $renderer = new CheckBoxRenderer($this->wrappers, $control);
+            $renderer = new CheckBoxRenderer();
         } elseif ($control instanceof Button) {
-            $renderer = new ButtonRenderer($this->wrappers, $control);
+            $renderer = new ButtonRenderer();
         } elseif($control instanceof TextBase || $control instanceof SelectBox) {
-            $renderer = new FloatingControlRenderer($this->wrappers, $control);
+            $renderer = new FloatingControlRenderer();
         } else { // MultiSelectBox || UploadControl || BaseControl
-            $renderer = new StandardControlRenderer($this->wrappers, $control);
+            $renderer = new StandardControlRenderer();
         }
         // Renderování control.
-        $renderer->render($container);
+        $renderer->render($control, $container);
         // Control je již vyrenderovaný.
         $control->setOption('rendered', true);
     }

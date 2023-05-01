@@ -4,6 +4,7 @@ namespace Jdvorak23\Bootstrap5FormRenderer;
 
 use ArrayAccess;
 use Countable;
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Nette\Utils\Html;
 
 /**
@@ -103,13 +104,13 @@ class Wrappers implements Countable, ArrayAccess
             // Pak nám stačí nastavit na jednotlivém control option 'wrapper'. Tj.:
             // $form->addText('street_number', ...)->setOption('wrapper', 'xshort');
             // Option 'wrapper' má samozřejmě smysl jedině v případe, že je control v inputGroup, jinak je ignorováno.
-            'wrapper' => [ // todo .all
+            'wrapper' => [
                 // Pro controls v dané inputGroup, které se nemají roztahovat.
                 // Tj. Button, Checkbox, RadioList, CheckboxList, UploadControl
                 'shrink' => 'div class=""', //'div class="col-sm-6 col-lg-4 p-0 w-auto"'
                 // Pro všechny elementy v dané inputGroup, které se mají roztahovat (a tím vyplnit zbávající prostor).
                 // Tj. všechny kromě výše uvedených
-                'grow' => 'div class="flex-fill"', //todo fill
+                'grow' => 'div class="flex-fill"',
                 // 'grow' => 'div class="col-sm-6 col-lg-4 flex-fill p-0"',
                 // Vlastní "konkrétní" wrappery:
                 'xxshort' => 'div class="col-6 col-sm-3 col-md-3 col-lg-2"',
@@ -121,7 +122,7 @@ class Wrappers implements Countable, ArrayAccess
                 // Všem vlastním wrapperům přiřadí tuto třídu.
                 '.own' =>  'flex-fill mb-3',
             ],
-            // U 3D wrapperů toto funguje malinko jinak. '.wrapper' se přiřadí všem defaultním, tj 'shrink' nebo 'own'
+            // U 3D wrapperů toto funguje malinko jinak. '.wrapper' se přiřadí všem defaultním, tj 'shrink' nebo 'grow'
             // Ale vlastním wrapperům se toto nepřiřadí, těm se přiřadí .own v 3D poli.
             '.wrapper' => '',
             // Wrapper pro samotné control, přidává se sem label (před) a description (za).
@@ -136,7 +137,7 @@ class Wrappers implements Countable, ArrayAccess
             // Layout, který je v základu v manuálu Bootstrap5, který automaticky zaobluje rohy je nepoužitelný,
             //   kvůli správnému renderování elementů pro výpis chyb (errors).
             // Třídy v .item dostanou všechny items, tím se i resetují borders tam, kde je nechceme
-            // 'item' je jednotlivá položka v inputGroup. Je to label, samotný control, nebo description.
+            // 'item' je jednotlivá položka v inputGroup. Je to label, samotný control element, nebo description.
             '.item' => 'rounded-0',
             // Přiřadí se prvnímu prvku v inputGroup
             '.firstItem' => 'rounded-start',
@@ -162,15 +163,15 @@ class Wrappers implements Countable, ArrayAccess
         ],
 
         //Pro jednotlivé controls, !mimo! inputGroup
-        'pair' => [
+        'container' =>[
             // Pro CheckboxList a RadioList. Checkbox se vykresluje jako jednotlivá item, tj. wrapper pro checkbox mimo inputGroup je 'control listItem'
-            'listContainer' => 'div class="d-flex flex-column justify-content-center h-100"',
+            'list' => 'div class="d-flex flex-column justify-content-center h-100"',
             // Wrapper pro elementy s floatingLabel
-            'floatingLabelContainer' => 'div class="form-floating"',
+            'floatingLabel' => 'div class="form-floating"',
             // Wrapper pro jednotlivý button
-            'buttonContainer' => 'div class="me-2"',
+            'button' => 'div class="me-2"',
             // Wrapper pro všechny ostatní controls
-            'container' => 'div',
+            'default' => 'div',
         ],
         'control' => [
 //Elements representing control and items
@@ -192,22 +193,7 @@ class Wrappers implements Countable, ArrayAccess
             '.reset' => 'btn btn-secondary',
             '.button' => 'btn btn-secondary',
             '.image' => '',
-            // Tyto třídy dostanou všechny jednotlivé elementy, reprezentující control ve formuláři.
-//Classes - validation
-            // .error a .noerror třídy se přiřadí všude tam, kde je konkrétní element controlu, pro List ke každé item.
-            // Jinak řečeno, všude kde je attribut name, budou přidány tyto třídy podle validace.
-        //'.error' => 'is-invalid', //Pouze, pokud je formulář validován
-        //'.noerror' => 'is-valid', //Pouze, pokud je formulář validován
-            // Pro správnou funkci zobrazovaní Bootstap5 validační zprávy (invalid-feedback, valid-feedback), musí být element
-            // validační zprávy sibling elementu, kde je is-invalid (is-valid) třída.
-            // Vzhledem k tomu je potřeba is-valid/invalid propagovat na wrapper, který je siblingem error containeru.
-            // U CheckBoxList, RadioList, a Checkbox v inputGroup se proto přidává ještě .listError na prvek,
-            // reprezentující element. Pokud tento neexistuje (jako ve standardním wrapperu např. 'control list',
-            // bude tato třída přiřazena potomkům, v tomhle případě každému wrapperu 'control listItem' (pokud existuje).
-        //'.listError' => 'is-invalid on-list',
-            // Vzhledem ke složitějším layoutům, např. v inputGroup, někdy je potřeba, aby tuto třídu měl až rodič,
-            // který je v tom případě siblingem error containeru - ten dostane třídu .parentError (pouze, je-li třeba).
-        //'.parentError' => 'is-invalid on-parent',
+            // Tyto třídy dostanou všechny jednotlivé elementy, reprezentující control ve formuláři:
 //Classes - general (but not for buttons)
             '.all' => 'all', // Všechny formulářové prvky, mimo buttons.
             '.required' => 'required',
@@ -237,8 +223,9 @@ class Wrappers implements Countable, ArrayAccess
             '.url' => 'form-control',
         ],
         'label' => [
+//Label classes
             // Třída pro floating label v inputGroup.
-            '.inputGroupFloating' => 'form-label',
+            '.inputGroupFloating' => 'form-label',//TODO add class for z-index 5
             // Třída pro label v inputGroup (bez floating label).
             '.inputGroup' => 'input-group-text',
             // Třída pro floating label mimo inputGroup
@@ -251,11 +238,12 @@ class Wrappers implements Countable, ArrayAccess
             '.class' => 'form-label',
             // Styl pro floating label, který je v inputGroup - z-index se musí nastavit, Bootstrap nesprávně přiděluje.
             // Lepší vytvořit třídu, a tu pak přiřadit do '.inputGroupFloating' o řádek výše.
-            '..inputGroupFloatingStyle' => 'z-index: 5;',
+            '..inputGroupFloatingStyle' => 'z-index: 5;', //todo
             // Třída přidáváná k labelu který je k required controlu
             '.required' => 'required',
+//Label affixes
             // Řetězce, přidávané před / za element v labelu. //
-            // Vloží před / za každý label, pokud neni definován vlastní label element (setOption('label', Html $element); //todo check "label free
+            // Vloží před / za každý label, pokud neni definován vlastní label element (setOption('label', Html $element);
             // Prefix přidaný na začátek každého labelu (nikoli do jednotlivých labelů items u ChecboxList a RadioList).
             'prefix' => '',
             // Jako výše, který je required. Vkládá se před případný 'prefix'.
@@ -268,22 +256,14 @@ class Wrappers implements Countable, ArrayAccess
         // Description se do inputGroup renderuje na panel.
         // Pokud je description HtmlStringable, nic se nevytváří, pouze se vloží, tj. žádné následující nastaveni nemá vliv.
         'description' => [
+//Description item
             // Element reprezentující description v inputGroup
             'inputGroupItem' => 'div class="input-group-text"',
             // Element reprezentující description mimo inputGroup
             'item' => 'small class="ms-1 d-inline-block"',
-            // Dále jsou wrappery pro element reprezentující description.
-            // Wrapper pro elementy v inputGroup
-            'inputGroupContainer' => null,
-            // Dále mimo inputGroup
-            // Description wrapper u tlačítka.
-            'buttonContainer' => null,
-            // Pro CheckboxList a RadioList.
-            'listContainer' => 'div',
-            // Pro Checkbox
-            'checkboxContainer' => 'div',
-            // Pro všechny ostatní
+//Description container
             'container' => null,
+//Description affixes
             // Řetězce, přidávané před / za description. Může být i HtmlStringable.
             // Vloží před každou generovanou description.
             'prefix' => '',
@@ -293,7 +273,7 @@ class Wrappers implements Countable, ArrayAccess
             'requiredprefix' => '',
             // Vloží za každou generovanou description controlu, který je required. Vkládá se za případný 'suffix'.
             'requiredsuffix' => '',
-
+//Automatic content instead of void description (===null):
             // Pokud je option 'description' null, tedy vůbec se nenastavuje, normálně by nebyla vytvořena.
             // Pokud je ale zadáno 'push' (tj. nikoli prázdný řetězec), vytvoří se s hodnotou 'push' a případně 'requiredpush'.
             // Nevytváří se u Button!
@@ -318,14 +298,15 @@ class Wrappers implements Countable, ArrayAccess
             // Vzhledem ke složitějším layoutům, např. v inputGroup, někdy je potřeba, aby tuto třídu měl až rodič,
             // který je v tom případě siblingem error containeru - ten dostane třídu .parentError (pouze, je-li třeba).
             '.parent' => 'is-invalid on-parent',
-//
+//Errors container
             // Wrappery pro všechny chyby na daném control. Do něj budou vypsány jednotlivé errory:
             // Pro errory na control v inputGroup.
-            'inputGroup' => 'div class="invalid-feedback ms-1"',
+            'inputGroup' => 'div class="invalid-feedback mx-1"',
             // Pro errory na control s floatingLabel (nikoli v inputGroup).
-            'floatingLabel' => 'div class="invalid-feedback ms-1 w-auto"',
+            'floatingLabel' => 'div class="invalid-feedback mx-1"',
             // Pro všechny zbylé.
-            'container' => 'div class="invalid-feedback ms-1 w-auto"', //wrapper error na controlu
+            'container' => 'div class="invalid-feedback mx-1"', //wrapper error na controlu
+//Error item
             // Elementy, reprezentující jednotlivou chybu (do nich bude vypsán text erroru):
             // Pro errory na control v inputGroup.
             'inputGroupItem' => 'span class="me-1"',
@@ -350,14 +331,15 @@ class Wrappers implements Countable, ArrayAccess
             // Vzhledem ke složitějším layoutům, např. v inputGroup, někdy je potřeba, aby tuto třídu měl až rodič,
             // který je v tom případě siblingem error containeru - ten dostane třídu .parentError (pouze, je-li třeba).
             '.parent' => 'is-valid on-parent',
-//
+//Valid feedback container
             // Wrappery pro všechny chyby na daném control. Do něj budou vypsány jednotlivé errory:
             // Pro errory na control v inputGroup.
-            'inputGroup' => 'div class="valid-feedback ms-1"',
+            'inputGroup' => 'div class="valid-feedback mx-1"',
             // Pro errory na control s floatingLabel (nikoli v inputGroup).
-            'floatingLabel' => 'div class="valid-feedback ms-1 w-auto"',
+            'floatingLabel' => 'div class="valid-feedback mx-1"',
             // Pro všechny zbylé.
-            'container' => 'div class="valid-feedback ms-1 w-auto"', //wrapper error na controlu
+            'container' => 'div class="valid-feedback mx-1"', //wrapper error na controlu
+//Valid feedback item
             // Elementy, reprezentující jednotlivou chybu (do nich bude vypsán text erroru):
             // Pro errory na control v inputGroup.
             'inputGroupItem' => 'span class="me-1"',
@@ -365,7 +347,7 @@ class Wrappers implements Countable, ArrayAccess
             'floatingLabelItem' => 'span class="me-1"',
             // Pro všechny zbylé.
             'item' => 'span class="me-1"',
-
+//Valid feedback default message
             'message' => 'It looks good.',
         ],
         'hidden' => [
@@ -381,11 +363,13 @@ class Wrappers implements Countable, ArrayAccess
      */
     public function getValue(string $name)
     {
-        $name = explode(' ', $name);
-        if(count($name) > 2)
+        $name = explode(' ', $name, 3);
+        if(count($name) == 3)
             $data = &$this->wrappers[$name[0]][$name[1]][$name[2]];
-        else
+        elseif(count($name) == 2)
             $data = &$this->wrappers[$name[0]][$name[1]];
+        else
+            $data = null;
         return $data;
     }
 
@@ -396,31 +380,28 @@ class Wrappers implements Countable, ArrayAccess
      * @param string $name Wrapper reprezentovaný klíči ve stringu oddělené mezerou. např. 'group container' => $wrappers['group']['container']
      * @param string $different3D Pokud $name obsahuje 3 klíče např 'inputGroup wrapper grow' podívá se,
      *  jestli existuje $wrappers['inputGroup']['wrapper'][$different3D]. Pokud ano, vrací toto, pokud ne, vrací $wrappers['inputGroup']['wrapper']['grow']
-     * @return Html|null Vrací wrapper definovaný v poli $wrappers, nebo null, pokud je wrapper definovaný jako null nebo neexistuje
+     * @return RendererHtml|null Vrací wrapper definovaný v poli $wrappers, nebo null, pokud je wrapper definovaný jako null nebo neexistuje
      */
-    public function getWrapper(string $name, string $different3D = '') : Html|null
+    public function getWrapper(string $name, string $different3D = ''): RendererHtml|null
     {
-        $keys = explode(' ', $name);
+        $keys = explode(' ', $name, 3);
         // Existuje vlastní 3D wrapper?
-        $isOwnWrapper = $different3D && count($keys) > 2 && isset($this->wrappers[$keys[0]][$keys[1]][$different3D]);
+        $isOwnWrapper = $different3D && count($keys) == 3 && isset($this->wrappers[$keys[0]][$keys[1]][$different3D]);
         // Pokud je zadané $different3D, pokusí se získat tento prvek místo uvedeného defaultního (3ti v $name).
-        if($isOwnWrapper)
-            $data = $this->wrappers[$keys[0]][$keys[1]][$different3D];
-        else
-            $data = $this->getValue($name);
+        $data = $isOwnWrapper ? $this->wrappers[$keys[0]][$keys[1]][$different3D] : $this->getValue($name);
         // V případě, že není wrapper, nebo je prázdný.
         if(!$data)
             return null;
         // Vytvoří wrapper, nebo naklonuje Html objekt uložený ve $wrappers.
-        $wrapper = $data instanceof Html ? clone $data : Html::el($data);
+        $wrapper = $data instanceof Html ? RendererHtml::fromNetteHtml($data) : RendererHtml::el($data);
         // Vytvořenému wrapperu přiřadí třídu, pokud existuje.
         // Ať už chceme hodnotu 2D nebo 3D wrapperu, třídu hledá ve 2D.
         // Např. pokud je $name 'inputGroup wrapper grow', třídu bude hledat ve $wrappers['inputGroup']['.wrapper']
         // Ovšem pokud máme-li vlastní 3D wrapper (definovaný ve wrappers), vezme místo toho .own, pokud existuje
         if($isOwnWrapper)
-            $wrapper->class($this->getValue($keys[0] . ' ' . $keys[1] . ' .own'), true);
+            $wrapper->setClasses($this->getValue($keys[0] . ' ' . $keys[1] . ' .own'));
         elseif(isset($this->wrappers[$keys[0]]['.' . $keys[1]]))
-            $wrapper->class($this->wrappers[$keys[0]]['.' . $keys[1]], true);
+            $wrapper->setClasses($this->wrappers[$keys[0]]['.' . $keys[1]]);
         return $wrapper;
     }
 
@@ -431,10 +412,10 @@ class Wrappers implements Countable, ArrayAccess
      *  jestli existuje $wrappers['inputGroup']['wrapper'][$different3D]. Pokud ano, vrací true, pokud ne, false
      * @return bool true, je-li definován $different3D, false, pokud není.
      */
-    public function isChosenWrapper(string $name, string $different3D) : bool
+    public function isChosenWrapper(string $name, string $different3D): bool
     {
-        $keys = explode(' ', $name);
-        return count($keys) > 2 && isset($this->wrappers[$keys[0]][$keys[1]][$different3D]);
+        $keys = explode(' ', $name, 3);
+        return count($keys) == 3 && isset($this->wrappers[$keys[0]][$keys[1]][$different3D]);
     }
 
     /**
@@ -442,12 +423,12 @@ class Wrappers implements Countable, ArrayAccess
      * instance Html, vrátí ji. Pokud tam je cokoli jiného, pokusí se to převést na string a vrátit.
      * Používá se na prefixy/suffixy u labelů a description, to je jediný content v poli wrappers.
      * @param string $name
-     * @return Html|string
+     * @return RendererHtml|string
      */
-    public function getContent(string $name) : Html|string
+    public function getContent(string $name) : RendererHtml|string
     {
         $data = $this->getValue($name);
-        return $data instanceof Html ? clone $data  : (string) $data;
+        return $data instanceof Html ? RendererHtml::fromNetteHtml($data) : (string) $data;
     }
     /*
      * Dále jsou už jen implementace Countable a ArrayAccess
@@ -462,8 +443,6 @@ class Wrappers implements Countable, ArrayAccess
         return isset($this->wrappers[$offset]);
     }
 
-    //Přesně nevim jak, ale krásně to funguje s & :D
-    //todo 3d err?
     public function &offsetGet(mixed $offset) : mixed
     {
         return $this->wrappers[$offset];

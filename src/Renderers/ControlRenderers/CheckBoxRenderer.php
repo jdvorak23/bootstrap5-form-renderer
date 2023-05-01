@@ -2,6 +2,8 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers;
 
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\HtmlWtf;
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Nette\HtmlStringable;
 use Nette\Utils\Html;
 
@@ -32,29 +34,31 @@ use Nette\Utils\Html;
  */
 class CheckBoxRenderer extends BaseControlRenderer
 {
-    public function renderToGroup(Html $container)
+    public function renderToGroup(Html $container):void
     {
-        $this->inputGroupWrapper = $this->getWrapper("wrapper", 'inputGroup wrapper shrink', $container);
+        //$this->inputGroupElement = $this->getWrapper("wrapper", 'inputGroup wrapper shrink', $container);
+        $this->renderInputGroupWrapper();
         $this->renderParent($this->inputGroupWrapper);
-        $itemWrapper = $this->getWrapper('item', 'control listInputGroupItem', $this->element); //$this->getDefaultWrapper('control listInputGroupItem', $this->element)
-        if($this->control->getOption('item') === null ||  $this->control->getOption('item') === true)
-            if($itemWrapper !== $container && is_string($this->control->getOption('.item')))
-                $itemWrapper->class($this->control->getOption('.item'), true);
+
+        $itemWrapper = $this->htmlFactory->createWrapper('item', 'control listInputGroupItem', false); //$this->getDefaultWrapper('control listInputGroupItem', $this->element)
+        $this->element->addHtml($itemWrapper);
         //Přidání item, jediná položka
         $itemWrapper->addHtml($this->createControlElement());
         // Pokud parent je jenom fragment, a itemWrapper není, musí se pousunout 'is-invalid' třída
         if(!$this->parent->getName() && $itemWrapper->getName())
             $this->setFeedbackClasses($itemWrapper, '.list');
+        // Třída se přiděluje až tady, vyšší priorita
+        $itemWrapper->setClasses($this->control->getOption('.item'));
         $this->renderLabel($itemWrapper);
-        $this->renderDescription($this->parent, 'description inputGroupContainer');
-        $this->renderErrors($this->inputGroupWrapper);
+        $this->renderDescription($this->parent);
+        $this->renderFeedback($this->inputGroupWrapper);
     }
-    public function renderControl(Html $container)
+    public function renderControl(Html $container): void
     {
         $this->renderParent();
         $this->renderLabel($this->parent);
-        $this->renderDescription($this->parent, "description checkboxContainer");
-        $this->renderErrors($this->parent);
+        $this->renderDescription($this->parent);
+        $this->renderFeedback($this->parent);
     }
 
     /**
@@ -62,62 +66,54 @@ class CheckBoxRenderer extends BaseControlRenderer
      * Pokud neexistuje, tam kde to je třeba (renderToGroup), pokusí se přiřadit potomkovi.
      * @return void
      */
-    protected function setupElement()
+    protected function setupElement(): void
     {
-        parent::setupElement();
-        $this->setFeedbackClasses($this->element, '.list');
+        if($this->isInputGroup){
+            $this->setFeedbackClasses($this->element, '.list');
+            // Třída se dává až tady, má vyšší prioritu.
+            $this->element->setClasses($this->control->getOption('.element'));
+        }
     }
 
-    public function createControlElement(): Html
+    public function createControlElement(): RendererHtml
     {
-        $element = $this->control->getControlPart();
-        $element->class($this->wrappers->getValue("control .checkbox"), true);
+        $element = RendererHtml::fromNetteHtml($this->control->getControlPart());
+        $this->htmlFactory->setClasses($element, 'control .checkbox');
         $this->setupControlElement($element);
         return $element;
     }
 
-    protected function createElement() : Html
+    protected function createElement() : RendererHtml
     {
         // Vlastní element má smysl jen v inputGroup
-        if($this->inputGroup){
-            $ownElement = $this->control->getOption('element');
-            $this->isOwnElement = true;
-            if($ownElement instanceof Html)
-                return clone $ownElement;
-            elseif(is_string($ownElement) && $ownElement)
-                return Html::el($ownElement);
-            $this->isOwnElement = false;
-        }
-        $element = $this->inputGroup ? $this->getDefaultWrapper('control listInputGroup') : $this->createControlElement();
-        if (is_string($this->control->getOption('.element')))
-            $element->class($this->control->getOption('.element'), true);
-
-        return $element;
+        return $this->isInputGroup
+            ? $this->htmlFactory->createWrapper('element','control listInputGroup', false)
+            : $this->createControlElement();
+    }
+    protected function createInputGroupWrapper(): RendererHtml
+    {
+        if($this->isInputGroup)
+            return $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper shrink');
+        return RendererHtml::el();
     }
 
-    protected function createParentElement(): Html
+    protected function createParentElement(): RendererHtml
     {
-        return $this->inputGroup
-            ? $this->getWrapper("parent", 'inputGroup container standard')
-            : $this->getWrapper("parent", 'control listItem') ;
+        return $this->isInputGroup
+            ? $this->htmlFactory->createWrapper("parent", 'inputGroup container standard')
+            : $this->htmlFactory->createWrapper("parent", 'control listItem') ;
     }
 
-    protected function createLabel() : Html
+    protected function createLabel() : RendererHtml
     {
-        return $this->control->getLabelPart();
+        return RendererHtml::fromNetteHtml($this->control->getLabelPart());
     }
 
     public function renderLabel(Html $container)  : void
     {
-        // Pokud není element labelu, nerenderuje se. Asi nonses tady
         if(!$this->label)
             return;
-        // Pokud je zadaný vlastní Html element, je pouze vložen do containeru
-        if($this->control->getOption('label') instanceof HtmlStringable){
-            $container->addHtml($this->label);
-            return;
-        }
-        $this->label->class($this->wrappers->getValue('label .checkbox'), true);
+        $this->htmlFactory->setClasses($this->label,'label .checkbox');
         $container->addHtml($this->label);
         $this->setLabel();
     }

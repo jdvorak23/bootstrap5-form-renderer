@@ -2,47 +2,52 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers;
 
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Nette\Utils\Html;
 
 class ListControlRenderer extends BaseControlRenderer
 {
-    protected function renderControl(Html $container)
+    protected function renderControl(Html $container): void
     {
         $this->renderLabel($this->parent);
         $this->renderParent();
-        $this->renderItems($this->element);
-        $this->renderDescription($this->parent, "description listContainer");
-        $this->renderErrors($this->parent); //$this->element todo
+        $this->renderItems();
+        $this->renderDescription($this->parent);
+        $this->renderFeedback($this->parent); //$this->element todo
     }
 
-    protected function renderToGroup(Html $container)
+    protected function renderToGroup(Html $container): void
     {
-        $this->inputGroupWrapper = $this->getWrapper("wrapper", 'inputGroup wrapper shrink', $container);
+        //$this->inputGroupElement = $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper shrink', $container);
+        $this->renderInputGroupWrapper();
         $this->renderLabel($this->parent);
         $this->renderParent($this->inputGroupWrapper);
-        $this->renderItems($this->element);
-        $this->renderDescription($this->parent, 'description inputGroupContainer');
-        $this->renderErrors($this->inputGroupWrapper);
+        $this->renderItems();
+        $this->renderDescription($this->parent);
+        $this->renderFeedback($this->inputGroupWrapper);
     }
 
-    protected function renderItems(Html $container){
+    /**
+     * Items se renderují do this->element
+     * @return void
+     */
+    protected function renderItems(): void
+    {
         foreach ($this->control->getItems() as $key => $value)
         {
-            $itemWrapper = $this->inputGroup
-                ? $this->getWrapper('item', 'control listInputGroupItem', $container)  // $this->getDefaultWrapper('control listInputGroupItem', $container)
-                : $this->getWrapper('item', 'control listItem', $container); // $this->getDefaultWrapper('control listItem', $container)
-            if($this->control->getOption('item') === null ||  $this->control->getOption('item') === true) {
-                if ($itemWrapper !== $container && is_string($this->control->getOption('.item'))){
-                    $itemWrapper->class($this->control->getOption('.item'), true);
-                }
-            }
+            $itemWrapper = $this->isInputGroup
+                ? $this->htmlFactory->createWrapper('item', 'control listInputGroupItem', false)  // $this->getDefaultWrapper('control listInputGroupItem', $container)
+                : $this->htmlFactory->createWrapper('item', 'control listItem', false); // $this->getDefaultWrapper('control listItem', $container)
+            $this->element->addHtml($itemWrapper);
+
             $item = $this->createControlElementItem($key);
             $itemWrapper->addHtml($item);
             $this->renderItemLabel($key, $itemWrapper);
             // Pokud $container je jenom fragment, a itemWrapper není, musí se pousunout 'is-invalid' třída
-            if(!$container->getName() && $itemWrapper->getName())
+            if(!$this->element->getName() && $itemWrapper->getName())
                 $this->setFeedbackClasses($itemWrapper, '.list');
-
+            // Třída se přiděluje až tady, vyšší priorita
+            $itemWrapper->setClasses($this->control->getOption('.item'));
         }
     }
 
@@ -51,55 +56,52 @@ class ListControlRenderer extends BaseControlRenderer
      * Pokud neexistuje, pokusí se přiřadit potomkovi v renderItems().
      * @return void
      */
-    protected function setupElement()
+    protected function setupElement(): void
     {
-        parent::setupElement();
         $this->setFeedbackClasses($this->element, '.list');
+        // Třída se dává až tady, má vyšší prioritu.
+        $this->element->setClasses($this->control->getOption('.element'));
     }
 
+    protected function createInputGroupWrapper(): RendererHtml
+    {
+        if($this->isInputGroup)
+            return $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper shrink');
+        return RendererHtml::el();
+    }
     /**
      * U CheckBoxList a RadioList je element nikoli control (těch je totiž více), ale wrapper, do kterého jsou vkládány jednotlivé items.
      * Tedy u těchto controlů má smysl vlastní 'element' dodaný (případně) přes option.
-     * @return Html
+     * @return RendererHtml
      */
-    protected function createElement() : Html
+    protected function createElement() : RendererHtml
     {
-        $ownElement = $this->control->getOption('element');
-        $this->isOwnElement = true;
-        if($ownElement instanceof Html)
-            return clone $ownElement;
-        elseif(is_string($ownElement) && $ownElement)
-            return Html::el($ownElement);
-        $this->isOwnElement = false;
-        // Není zadán, veme default.
-        $element = $this->inputGroup
-            ? $this->getDefaultWrapper('control listInputGroup')
-            : $this->getDefaultWrapper('control list');
-        // Přidá případnou třídu v option '.element'.
-        if (is_string($this->control->getOption('.element')))
-            $element->class($this->control->getOption('.element'), true);
-        return $element;
+        return $this->isInputGroup
+            ? $this->htmlFactory->createWrapper('element','control listInputGroup', false)
+            : $this->htmlFactory->createWrapper('element','control list', false);
     }
 
-    protected function createParentElement(): Html {
-        return $this->inputGroup
-            ? $this->getWrapper("parent", 'inputGroup container standard')
-            : $this->getWrapper("parent", 'pair listContainer') ;
+    protected function createParentElement(): RendererHtml
+    {
+        return $this->isInputGroup
+            ? $this->htmlFactory->createWrapper("parent", 'inputGroup container standard')
+            : $this->htmlFactory->createWrapper("parent", 'container list') ;
     }
 
-    protected function createControlElementItem($key): Html {
-        $item = $this->control->getControlPart($key);
-        $item->class($this->wrappers->getValue("control .checkbox"), true);
+    protected function createControlElementItem($key): RendererHtml
+    {
+        $item = RendererHtml::fromNetteHtml($this->control->getControlPart($key));
+        $this->htmlFactory->setClasses($item, 'control .checkbox');
         $this->setupControlElement($item);
         return $item;
     }
 
-    protected function renderItemLabel($key, Html $container){
-        $label = $this->control->getLabelPart($key);
-        $label->class($this->wrappers->getValue("label .item"), true);
-        //Vlastni styly přidané přes option '.itemLabel'.
-        if(is_string($this->control->getOption('.itemLabel')))
-            $this->label->class($this->control->getOption('.itemLabel'), true);
+    protected function renderItemLabel($key, Html $container): void
+    {
+        $label = RendererHtml::fromNetteHtml($this->control->getLabelPart($key));
+        $this->htmlFactory->setClasses($label, 'label .item');
+        // Třídy se přidají ručně, není přes factory
+        $label->setClasses($this->control->getOption('.itemLabel'));
         $container->addHtml($label);
     }
 

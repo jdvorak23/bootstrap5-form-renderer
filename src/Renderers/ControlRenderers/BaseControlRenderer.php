@@ -2,6 +2,8 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers;
 
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\HtmlWtf;
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Jdvorak23\Bootstrap5FormRenderer\Wrappers;
 use Nette\Forms\Controls\BaseControl;
 use Nette\Forms\Controls\Button;
@@ -11,52 +13,44 @@ use Nette;
 
 /**
  *
- * @property-read Html|HtmlStringable|null $label to, co reprezentuje label ve struktuře. Netýká se labelů případných items.
- * @property-read Html $element Reprezentuje element controlu ve stuktuře, což ovšem to není ekvivalentní se samotným.
+ * @property-read RendererHtml|null $label to, co reprezentuje label ve struktuře. Netýká se labelů případných items.
+ * @property-read RendererHtml $element Reprezentuje element controlu ve stuktuře, což ovšem to není ekvivalentní se samotným
  * controlem, např. u CheckboxList je to wrapper, ve kterém jsou jednotlivé items.
- * @property-read Html $parent Parent ve smyslu rodiče ve struktuře.
+ * @property-read RendererHtml $parent Parent ve smyslu rodiče ve struktuře.
+ * @property-read RendererHtml $inputGroupWrapper Další wrapper nad $parent, používaný pro input group.
+ * @property-read HtmlWtf $htmlFactory
  */
 abstract class BaseControlRenderer
 {
     use Nette\SmartObject;
 
-    /** @var BaseControl Control formuláře, předávaný v konstruktoru. */
+    /** Control formuláře. Předává se metodě render(). */
     protected BaseControl $control;
     /** Container, do kterého se vykreslí control. Předává se metodě render(). */
     protected Html $container;
 
-    private Html|HtmlStringable|null $controlLabel = null;
-    private Html|null $controlElement = null;
-    private Html|null $parentElement = null;
-
-    protected Html|null $inputGroupWrapper = null;
+    private RendererHtml|null $controlLabel = null;
+    private RendererHtml|null $controlElement = null;
+    private RendererHtml|null $parentElement = null;
+    private RendererHtml|null $inputGroupWrapperElement = null;
     protected bool $floatingLabel;
-    protected bool $inputGroup;
+    protected bool $isInputGroup;
     protected bool $firstInGroup;
     protected bool $lastInGroup;
+
+    /* V základním nastavení control floating label nepodporuje */
     protected bool $floatingLabelAllowed = false;
 
-    protected Html|null $prevInputGroupItem = null;
+    /* Předchozí item v input group */
+    protected ?RendererHtml $prevInputGroupItem = null;
 
-    /** Pole s wrappery, předávané v konstruktoru. */
 
-    protected Wrappers $wrappers;
+    protected ?Wrappers $wrappers = null;
 
-    protected bool $isOwnElement = false;
-
-    protected bool $clientValidation = true; //todo
-
-    public function __construct(Wrappers $wrappers, BaseControl $control)
+    public function __construct(protected HtmlWtf|null $htmlFactory = null)
     {
-        $this->wrappers = $wrappers;
-        $this->control = $control;
-        // Option 'floatingLabel' je vždy bool, ošetřeno v rendereru.
-        $this->floatingLabel = $this->control->getOption('floatingLabel')  === true;
-        // Option 'inputGroup' je vždy bool, ošetřeno v ControlWrappers.
-        $this->inputGroup = $this->control->getOption('inputGroup')  === true;
-        // Zbylé 2 jsou buď true/false, nebo neexistují (neměly by).
-        $this->firstInGroup = $this->control->getOption('firstInInputGroup') === true;
-        $this->lastInGroup = $this->control->getOption('lastInInputGroup') === true;
+        if($this->htmlFactory)
+            $this->wrappers = $this->htmlFactory->wrappers;
     }
 
     /**
@@ -64,64 +58,74 @@ abstract class BaseControlRenderer
      * @param Html $container Sem vyrenderuje daný control.
      * @return void
      */
-    public function render(Html $container) : void
+    public function render(BaseControl $control, Html $container): void
     {
         $this->container = $container;
-        // Element musí existovat vždy, reprezentuje control, proto se vytvoří rovnou zde
-        // createElement vrací vždy nějaké HTML, přinejhorším Html::el() - má smysl pro Listy a CheckBox v inputGroup.
-        $this->controlElement = $this->createElement();
+        $this->control = $control;
+        if(!$this->htmlFactory){
+            $this->htmlFactory = $control->getOption('htmlFactory');
+            $this->wrappers = $this->htmlFactory->wrappers;
+        }
 
-        if($this->inputGroup)
+        $this->setRenderer();
+
+        if($this->isInputGroup)
             $this->renderToGroup($container);
         else
             $this->renderControl($container);
+    }
+
+    protected function setRenderer(): void
+    {
+        // Option 'floatingLabel' je vždy bool, ošetřeno v rendereru.
+        $this->floatingLabel = $this->control->getOption('floatingLabel')  === true;
+        // Option 'inputGroup' je vždy bool, ošetřeno v ControlWrappers.
+        $this->isInputGroup = $this->control->getOption('inputGroup')  === true;
+        // Zbylé 2 jsou buď true/false, nebo neexistují (neměly by).
+        $this->firstInGroup = $this->control->getOption('firstInInputGroup') === true;
+        $this->lastInGroup = $this->control->getOption('lastInInputGroup') === true;
     }
 
     /**
      * Vyrenderuje celý control, pokud není v inputGroup.
      * @param Html $container
      */
-    abstract protected function renderControl(Html $container);
+    abstract protected function renderControl(Html $container): void;
 
     /**
      * Vyrenderuje celý control, pokud je v inputGroup.
      * @param Html $container
      */
-    abstract protected function renderToGroup(Html $container);
+    abstract protected function renderToGroup(Html $container): void;
 
 //---------------------------------------- element controlu -----------------------------------------
     /**
      * Getter pro $this->element.
      * Vrátí element reprezentující control ve struktuře.
-     * @return Html
+     * @return RendererHtml
      */
-    protected function getElement() : Html
+    protected function getElement(): RendererHtml
     {
+        if(!$this->controlElement)
+            $this->controlElement = $this->createElement();
         return $this->controlElement;
     }
     /**
      * Vytvoří element pro control.
      * Přetížením v odvozených třídách lze vytvořit jinak.
-     * @return Html
+     * @return RendererHtml
      */
-    protected function createElement() : Html
+    protected function createElement(): RendererHtml
     {
-        return $this->control->getControl();
+        return RendererHtml::fromNetteHtml($this->control->getControl());
     }
     /**
      * Renderuje element pro control.
      * @return void
      */
-    protected function renderElement() : void
+    protected function renderElement(): void
     {
-        // Pokud je definovaný vlastní 'element', tj. u CheckBox v inputGroup, a všech CheckBoxList a RadioList.
-        if($this->isOwnElement) {
-            $this->parent->addHtml($this->element);
-            if($this->inputGroup) // Pokud jsme v inputGroup, resetují se borders předchozího prvku.
-                $this->setBorders(Html::el());
-        }else {
-            $this->renderHtmlElement($this->element, $this->parent);
-        }
+        $this->renderHtmlElement($this->element, $this->parent);
         $this->setupElement();
     }
     /**
@@ -129,31 +133,24 @@ abstract class BaseControlRenderer
      * Pro nastavení jednotlivého formulářového prvku slouží metoda setupControlElement
      * @return void
      */
-    protected function setupElement()
-    {
-        /*if(!$this->isOwnElement){
-
-        }*/
-    }
+    abstract protected function setupElement(): void;
     /**
      * Nastaví každému formulářovému prvku potřebné třídy. U Listů se tímto nastavuje každá item.
      * Button toto nevolá.
-     * @param Html $element formulářový prvek
+     * @param RendererHtml $element formulářový prvek
      * @return void
      */
-    protected function setupControlElement(Html $element) : void
+    protected function setupControlElement(RendererHtml $element): void
     {
-        //Přiřadí třídu, pokud je na controlu error
-       /* $element->class($this->wrappers->getValue('control .error'), $this->control->hasErrors());
-        if($this->control->getForm(false))
-            $element->class($this->wrappers->getValue('control .noerror'), !$this->control->hasErrors() && $this->control->getForm(false)->isSubmitted());*/ //todo
+        // Feedback
         $this->setFeedbackClasses($element, '.control');
-        $element->class($this->wrappers->getValue('control .required'), $this->control->isRequired());
-        $element->class($this->wrappers->getValue('control .optional'), !$this->control->isRequired());
-        $element->class($this->wrappers->getValue('control .all'), true);
-        // Přiřadí třídy, pokud jsou v option '.control'
-        if(is_string($this->control->getOption('.control')) )
-            $element->class($this->control->getOption('.control'), true);
+        // Classes from $wrappers
+        $this->control->isRequired()
+            ? $this->htmlFactory->setClasses($element, 'control .required')
+            : $this->htmlFactory->setClasses($element, 'control .optional');
+        $this->htmlFactory->setClasses($element, 'control .all');
+        // Option classes
+        $element->setClasses($this->control->getOption('.control'));
     }
 //---------------------------------------- parent element -----------------------------------------
     /**
@@ -162,14 +159,12 @@ abstract class BaseControlRenderer
      * Pokud neexistuje, vytvoří ho.
      * Pokud je uvedeno option "parent", a je do něj nahrána instance Html,
      * použije se tento dodaný element místo výchozího.
-     * @return Html
+     * @return RendererHtml
      */
-    protected function getParent() : Html
+    protected function getParent(): RendererHtml
     {
         if($this->parentElement)
             return $this->parentElement;
-        // Metoda create nám vždy vrací nějaké Html, pokud není definovaný parent wrapper (nebo je false či null)
-        // i tak vrátí fragment Html::el()
         $this->parentElement = $this->createParentElement();
         return $this->parentElement;
     }
@@ -177,19 +172,20 @@ abstract class BaseControlRenderer
      * Vytvoří parent element pro control.
      * @return Html
      */
-    abstract protected function createParentElement() : Html;
+    abstract protected function createParentElement(): RendererHtml;
+
     /**
      * Vyrenderuje HTML rodiče, do kterého je vložen element, reprezentující control.
      * Rovnou do tohoto rodiče vyrenderuje control element!!
+     * @param Html|null $container
      * @return void
      */
-    protected function renderParent(?Html $container = null)
+    protected function renderParent(?Html $container = null): void
     {
         if(!$container)
             $container = $this->container;
         // Nastavení parent elementu
         $this->setupParent();
-        // Vložení do containeru
         $container->addHtml($this->parent);
         //!!!Rovnou vyrenderuje element
         $this->renderElement();
@@ -198,13 +194,28 @@ abstract class BaseControlRenderer
      * Slouží k nastavení parent elementu contorolu.
      * @return void
      */
-    protected function setupParent()
+    protected function setupParent(): void
     {
-        // Nastavení třídy u parent elementu, pokud je nastaven a je nastavena tato třída přes option ".parent".
-        // Tj. pokud je parentElement fragment, nemá nastavení třídy žádný efekt, jak potřebujeme
-        if(is_string($this->control->getOption('.parent')))
-            $this->parent->class($this->control->getOption('.parent'), true);
     }
+//---------------------------------------- input group wrapper element -----------------------------------------
+    protected function getInputGroupWrapper(): RendererHtml
+    {
+        if(!$this->inputGroupWrapperElement)
+            $this->inputGroupWrapperElement = $this->createInputGroupWrapper();
+        return $this->inputGroupWrapperElement;
+    }
+    abstract protected function createInputGroupWrapper(): RendererHtml;
+    protected function renderInputGroupWrapper(?Html $container = null): void
+    {
+        if(!$container)
+            $container = $this->container;
+        $this->setupInputGroupWrapper();
+        $container->addHtml($this->inputGroupWrapper);
+    }
+    protected function setupInputGroupWrapper(): void
+    {
+    }
+
 //---------------------------------------- label element -----------------------------------------
     /**
      * Getter pro $this->label
@@ -216,9 +227,9 @@ abstract class BaseControlRenderer
      * Dále pokud je caption na controlu false nebo null, label se nevytváří.
      * Pokud je true, vytváří se label s prázdným textem (true je jako '').
      * A nakonec vytvoří label pomocí $this->createLabel();
-     * @return Html|HtmlStringable|null label
+     * @return RendererHtml|HtmlStringable|null label
      */
-    protected function getLabel() : Html|HtmlStringable|null
+    protected function getLabel(): RendererHtml|HtmlStringable|null
     {
         if($this->controlLabel)
             return $this->controlLabel;
@@ -227,7 +238,7 @@ abstract class BaseControlRenderer
         // Vůbec už nás dál nezajímá, co bylo v caption.
         $label = $this->control->getOption('label');
         if($label instanceof HtmlStringable){
-            $this->controlLabel = clone $label;
+            $this->controlLabel = $this->htmlFactory->createOwn((string) $label);
             return $this->controlLabel;
         }
         // Pokud je caption implicitně nastaveno na false, nebo null (default), pak nepřidáváme element.
@@ -244,11 +255,11 @@ abstract class BaseControlRenderer
     /**
      * Vytvoří element pro label.
      * Přetížením v odvozených třídách lze vytvořit jinak.
-     * @return Html
+     * @return RendererHtml
      */
-    protected function createLabel() : Html
+    protected function createLabel(): RendererHtml
     {
-        return $this->control->getLabel();
+        return RendererHtml::fromNetteHtml($this->control->getLabel());
     }
 
     /**
@@ -256,48 +267,52 @@ abstract class BaseControlRenderer
      * @param Html $container kam se vloží label
      * @return void
      */
-    protected function renderLabel(Html $container) : void
+    protected function renderLabel(Html $container): void
     {
         // Pokud není element labelu, nerenderuje se.
         if(!$this->label)
             return;
+        // todo
         // Pokud je zadaný vlastní Html element, je pouze vložen do containeru
-        if($this->control->getOption('label') instanceof HtmlStringable){
+        /*if($this->control->getOption('label') instanceof HtmlStringable){
             // I tak, pokud je element v inputGroup (a není to floating label), se resetují ruční borders předchozího elementu v inputGroup.
             // Možná zbytečné když label je vždy první v inputGroup :D
-            if($this->inputGroup && !($this->floatingLabelAllowed && $this->floatingLabel))
-                $this->setBorders(Html::el());
-            $container->addHtml($this->label);
+            if($this->floatingLabelAllowed && $this->floatingLabel)
+                $container->addHtml($this->label);
+            else
+                $this->renderHtmlElement($this->label, $container);
             return;
-        }
+        }*/
         // Přidělení tříd a stylu labelu, podle toho jestli je v inputGroup a jestli je label floating label.
-        if($this->inputGroup){
+        if($this->isInputGroup){
             // Pokud je to floating label, a je v inputGroup, přiděluje se i styl na z-index:5,
-            // protože to Bootstrap5 podcenil - pokud je floating label zároveň v inputGroup, nefunguje bez toho správně.
+            // protože to Bootstrap5 podcenil - pokud je floating label zároveň v inputGroup, nefunguje bez toho správně (protože to dávám do 2 input-group :d)
             // A do containeru se nevkládá přes renderHtmlElement, protože není součástí "lajny" inputGroup, tj. nerenderuje se standardně.
             if($this->floatingLabelAllowed && $this->floatingLabel){
-                $this->label->class($this->wrappers->getValue('label .inputGroupFloating'), true);
-                $this->label->style .= $this->wrappers->getValue('label ..inputGroupFloatingStyle');
+                $this->htmlFactory->setClasses($this->label, 'label .inputGroupFloating');
+                $style = $this->wrappers->getValue('label ..inputGroupFloatingStyle');
+                if($style && is_string($style))
+                    $this->label->style .= $style;
                 $container->addHtml($this->label);
             }else {
                 //Třída pro label v inputGroup (bez floatingLabel)
-                $this->label->class($this->wrappers->getValue('label .inputGroup'), true);
+                $this->htmlFactory->setClasses($this->label,'label .inputGroup');
                 $this->renderHtmlElement($this->label, $container);
             }
         }else{
             if($this->floatingLabelAllowed && $this->floatingLabel)
-                $this->label->class($this->wrappers->getValue('label .floatingLabel'), true);
+                $this->htmlFactory->setClasses($this->label,'label .floatingLabel');
             else
-                $this->label->class($this->wrappers->getValue('label .class'), true);
+                $this->htmlFactory->setClasses($this->label,'label .class');
             $this->renderHtmlElement($this->label, $container);
         }
         //Nakonec je voláno obecné nastavení labelu.
         $this->setLabel();
     }
-    protected function setLabel()
+    protected function setLabel(): void
     {
         // Pokud není element labelu, nebo je zadaný vlastní Html element, nic se nenastavuje.
-        if(!$this->label || $this->control->getOption('label') instanceof HtmlStringable)
+        if(!$this->label || $this->label->isOwn)
             return;
         // Prefixy / suffixy
         $requiredPrefix = $this->control->isRequired() ? $this->wrappers->getContent('label requiredprefix') : '';
@@ -310,87 +325,106 @@ abstract class BaseControlRenderer
         $this->label->addHtml($requiredSuffix);
         //'label .required'
         if($this->control->isRequired())
-            $this->label->class($this->wrappers->getValue('label .required'), true);
-        //Vlastni styly přidané přes option '.label'.
-        if(is_string($this->control->getOption('.label')))
-            $this->label->class($this->control->getOption('.label'), true);
+            $this->htmlFactory->setClasses($this->label,'label .required');
+        // Vlastni styly přidané přes option '.label'.
+        // Přidávají se ručně, label se nezískává přes factory, ale z BaseControl
+        $this->label->setClasses($this->control->getOption('.label'));
     }
 //---------------------------------------- description element -----------------------------------------
-    protected function renderDescription(Html $container, string $wrapper = null) : void
+    protected function createDescription(): RendererHtml|null
     {
-        //Description v option 'description'.
         $description = $this->control->getOption('description');
         // Pokud je option 'description' implicitně nastaveno na false, pak nepřidáváme element v žádném případě.
         if($description === false)
-            return;
-        //Při description, která je Html, se vloží pouze toto html
+            return null;
+        // Při description, která je Html, se použije pouze toto html
         if($description instanceof HtmlStringable) {
-            //Reset tříd pro zaoblení rohů předchozího elementu.
-            //Vkládá se prázdný, protože nastavení description je jen na uživateli.
-            if($this->inputGroup)
-                $this->setBorders(Html::el());
-            $container->addHtml((string) $description);
+            return $this->htmlFactory->createOwn((string) $description);
+        }
+        // Pokud je null, může se vytvořit, pokud je zadaný 'description push' nebo je required a je zadaný 'description requiredpush'.
+        if($description === null) {
+            $push = $this->wrappers->getContent('description push');
+            $requiredPush = $this->control->isRequired() ? $this->wrappers->getContent('description requiredpush') : '';
+            if (($push || $requiredPush) && !$this->control instanceof Button) { // U buttonu se nevytváří!
+                $push = $push ?: '';
+                $requiredPush = $requiredPush ?: '';
+                return $this->htmlFactory->createOwn($push . $requiredPush);
+            } else// Pokud není zadaný nějaký default content, nevytváří se
+                return null;
+        }
+        if($description === true)
+            $description = '';
+        // Zbývá string
+        if(!is_string($description) && !($description instanceof \Stringable))
+            return null;
+        // Translate
+        $description = $this->control->translate($description);
+        // Prefixes / Suffixes
+        $requiredPrefix = $this->control->isRequired() ? $this->wrappers->getContent('description requiredprefix') : '';
+        $requiredSuffix = $this->control->isRequired() ? $this->wrappers->getContent('description requiredsuffix') : '';
+        // Přidání
+        $description = $requiredPrefix . $this->wrappers->getContent('description prefix') .  $description . $this->wrappers->getContent('description suffix') . $requiredSuffix;
+        return RendererHtml::el()->addHtml($description);
+    }
+    protected function createDescriptionElement(): RendererHtml
+    {
+        return $this->isInputGroup
+            ? $this->htmlFactory->createWrapper('descriptionItem','description inputGroupItem')
+            : $this->htmlFactory->createWrapper('descriptionItem','description item');
+    }
+    protected function createDescriptionWrapper(): RendererHtml
+    {
+        return $this->htmlFactory->createWrapper('descriptionContainer', 'description container');
+    }
+    protected function renderDescription(Html $container): void
+    {
+        $description = $this->createDescription();
+        if($description === null)
+            return;
+        if($description->isOwn){
+            $this->renderHtmlElement($description, $container);
             return;
         }
-        //Translate
-        $description = $this->control->translate($description);
-        // Pokud není, nejdřív zjistíme, jestli se bude vytvářet.
-        // I když není description definována, může se vytvářet, pokud je definovaný 'push' nebo 'requiredpush'.
-        $push = $this->wrappers->getContent('description push');
-        $requiredPush = $this->control->isRequired() ? $this->wrappers->getContent('description requiredpush') : '';
-        // Pokud je null, může se vytvořit, pokud je zadaný 'description push' nebo je required a je zadaný 'description requiredpush'.
-        if(is_null($description)){
-            if(($push || $requiredPush) && !$this->control instanceof Button){
-                $push = $push ?: '';
-                $requiredPush = $requiredPush?: '';
-                $description = $push . $requiredPush;
-                $element = Html::el();
-            }
-            else// Pokud není zadaný, nevytváří se
-                return;
-        }else{ // Pokud není null, vytváří se z dané description
-            if($description === true)
-                $description = '';
-            $requiredPrefix = $this->control->isRequired() ? $this->wrappers->getContent('description requiredprefix') : '';
-            $requiredSuffix = $this->control->isRequired() ? $this->wrappers->getContent('description requiredsuffix') : '';
-            // Přidání
-            $description = $requiredPrefix . $this->wrappers->getContent('description prefix') .  $description . $this->wrappers->getContent('description suffix') . $requiredSuffix;
-            $element = $this->inputGroup
-                ? $this->getDefaultWrapper('description inputGroupItem')
-                : $this->getDefaultWrapper('description item');
+        $element = $this->createDescriptionElement();
+        $wrapper = $this->createDescriptionWrapper();
+
+        // AKA !isFragment()
+        // Pokud je $wrapper existující wrapper, pak se nastavení pro inputGroup provádí na něm
+        if($wrapper->getName()){
+            $this->renderHtmlElement($wrapper, $container);
+            $wrapper->addHtml($element);
+            $element->addHtml($description);
+            return;
         }
-
-
-
-        $element->addHtml($description);
-
-        $wrapper = $wrapper ? $this->getDefaultWrapper($wrapper, $container) : $container;
-
+        // Jinak se nastavení inputGroup provede na elementu description
         $this->renderHtmlElement($element, $wrapper);
+        $element->addHtml($description);
+        $container->addHtml($wrapper);
     }
+
     //---------------------------------------- error element -----------------------------------------
     /**
      * Vypíše chyby v poli errors na contolu
      * @param Html $container kam se vloží
      * @return void
      */
-    protected function renderErrors(Html $container) : void {
+    protected function renderFeedback(Html $container): void
+    {
         $errors = $this->control->getErrors();
-        $clientValidation = (bool) $this->control->getOption('clientValidation');
+        $clientValidation = (bool) $this->control->getOption('clientValidation'); //Is already bool value
         $feedbackCreated = false;
 
         if($errors)
-            $this->renderErrors2($container, $errors);
+            $this->renderErrors($container, $errors);
         elseif($this->isSubmitted())
             $feedbackCreated = $this->renderValidFeedback($container);
-
+        // Pokud je client validation, vyrenderuje se template pro javascript
         if($clientValidation){
             if(!$errors)
-                $this->renderErrors2($container, ['']);
+                $this->renderErrors($container, ['']);
             if(!$feedbackCreated)
                 $this->renderValidFeedback($container, true);
         }
-        // Zde využijeme toho, že errors se vždy renderují až nakonec, jinak by se to muselo udělat jinak
         // Pokud je $container stejný, jako parent element controlu, vše je podle "snadardního"
         // Bootstrap5, pokud není, musí se přidat na parent
         // Pokud parent neexistuje, nemá efekt, a v tu chvíli ho ani nepotřebujeme
@@ -398,29 +432,30 @@ abstract class BaseControlRenderer
             $this->setFeedbackClasses($this->parent, '.parent');
         }
     }
-    protected function renderErrors2(Html $container, array $errors) : void {
+
+    protected function renderErrors(Html $container, array $errors): void {
         //Získání wrapperu podle inputGroup/floatingLabels
-        if($this->inputGroup)
-            $wrapper = $this->getWrapper("errorContainer", 'error inputGroup', $container);
+        if($this->isInputGroup)
+            $wrapper = $this->htmlFactory->createWrapper("errorContainer", 'error inputGroup');
         elseif($this->floatingLabel && $this->floatingLabelAllowed)
-            $wrapper = $this->getWrapper("errorContainer", 'error floatingLabel', $container);
+            $wrapper = $this->htmlFactory->createWrapper("errorContainer", 'error floatingLabel');
         else
-            $wrapper = $this->getWrapper("errorContainer", 'error container', $container);
+            $wrapper = $this->htmlFactory->createWrapper("errorContainer", 'error container');
+        $container->addHtml($wrapper);
         // Přidání všech chyb
         foreach ($errors as $error) {
-            if($this->inputGroup)
-                $errorItem = $this->getWrapper("error", 'error inputGroupItem', $wrapper);
+            if($this->isInputGroup)
+                $errorItem = $this->htmlFactory->createWrapper("error", 'error inputGroupItem');
             elseif($this->floatingLabel && $this->floatingLabelAllowed)
-                $errorItem = $this->getWrapper("error", 'error floatingLabelItem', $wrapper);
+                $errorItem = $this->htmlFactory->createWrapper("error", 'error floatingLabelItem');
             else
-                $errorItem = $this->getWrapper("error", 'error item', $wrapper);
+                $errorItem = $this->htmlFactory->createWrapper("error", 'error item');
+            $wrapper->addHtml($errorItem);
             $errorItem ->addText($error);
         }
     }
-    protected function renderValidFeedback(Html $container, $force = false) : bool
+    protected function renderValidFeedback(Html $container, $force = false): bool
     {
-        // Pokud není zadán parametr $feedback, pokusí se ho získat z option 'feedback'.
-
         $customFeedback = $this->control->getOption('feedback');
         if($customFeedback === null){ // Pokud je null, vezme zprávu z 'valid message'. Pro prázdný řetězec se nerenderuje.
             $feedback = $this->wrappers->getValue('valid message');
@@ -446,33 +481,33 @@ abstract class BaseControlRenderer
         //Translate
         $feedback = $this->control->translate($feedback);
 
-
         // Získání wrapperu a item podle inputGroup/floatingLabels
-        if($this->inputGroup) {
-            $wrapper = $this->getWrapper("validContainer", 'valid inputGroup', $container);
-            $item = $this->getWrapper("valid", 'valid inputGroupItem', $wrapper);
+        if($this->isInputGroup) {
+            $wrapper = $this->htmlFactory->createWrapper("validContainer", 'valid inputGroup');
+            $item = $this->htmlFactory->createWrapper("valid", 'valid inputGroupItem');
         }elseif($this->floatingLabel && $this->floatingLabelAllowed) {
-            $wrapper = $this->getWrapper("validContainer", 'valid floatingLabel', $container);
-            $item = $this->getWrapper("valid", 'valid floatingLabelItem', $wrapper);
+            $wrapper = $this->htmlFactory->createWrapper("validContainer", 'valid floatingLabel');
+            $item = $this->htmlFactory->createWrapper("valid", 'valid floatingLabelItem');
         }else{
-            $wrapper = $this->getWrapper("validContainer", 'valid container', $container);
-            $item = $this->getWrapper("valid", 'valid item', $wrapper);
+            $wrapper = $this->htmlFactory->createWrapper("validContainer", 'valid container');
+            $item = $this->htmlFactory->createWrapper("valid", 'valid item');
         }
+        $container->addHtml($wrapper);
+        $wrapper->addHtml($item);
         // Přidání feedbacku
         $item->addText($feedback);
         return true;
     }
-    protected function setFeedbackClasses(Html $element, string $name2D) : void
+    protected function setFeedbackClasses(RendererHtml $element, string $name2D): void
     {
         if($this->control->hasErrors())
-            $element->class($this->wrappers->getValue('error ' . $name2D), true);
+            $element->setClasses($this->wrappers->getValue('error ' . $name2D));
         elseif($this->isSubmitted())
-            $element->class($this->wrappers->getValue('valid ' . $name2D), true);
+            $element->setClasses($this->wrappers->getValue('valid ' . $name2D));
     }
 
     //---------------------------------------- helper methods -----------------------------------------
-
-    protected function isSubmitted() : bool
+    protected function isSubmitted(): bool
     {
         if(!$this->control->getForm(false))
             return false;
@@ -480,113 +515,60 @@ abstract class BaseControlRenderer
     }
 
     /**
-     * @param Html $htmlElement Html element ke vložení
-     * @param Html $container Kam se vkládá
+     * @param RendererHtml $htmlElement Html element ke vložení
+     * @param RendererHtml $container Kam se vkládá
      * @param string|null $wrapper Případný wrapper elementu, zadaný stringem - bere se z pole $wrappers
-     * @return Html
+     * @return RendererHtml
      */
-    protected function renderHtmlElement(Html $htmlElement, Html $container, string|null $wrapper = null) : Html
+    protected function renderHtmlElement(RendererHtml $htmlElement, Html $container): RendererHtml
     {
-        //Pokud je zadán wrapper, vytvoří se a vloží do containeru
-        $wrapper = $wrapper ? $this->getDefaultWrapper($wrapper, $container) : $container;
         //Pokud je element v inputGroup, nastaví se mu okraje (aby byly ty na okraji rounded) a výška elementu,
         //aby byly všechny elementy v inputGroup stejně vysoké
-        if($this->inputGroup){
-            $this->setBorders($htmlElement);
-            $this->setHeight($htmlElement);
+        if($this->isInputGroup){
+            if($htmlElement->isOwn){
+                $this->setBorders(RendererHtml::el());
+            }else{
+                $this->setBorders($htmlElement);
+                $this->setHeight($htmlElement);
+            }
         }
         //Vloží element do struktury
-        $wrapper->addHtml($htmlElement);
-        return $wrapper;
+        $container->addHtml($htmlElement);
+        return $container;
     }
-
-
-    private function setHeight(Html $el){
+    private function setHeight(RendererHtml $element): void
+    {
         if($this->floatingLabel){
             $style = $this->wrappers->getValue('inputGroup ..floatingLabelHeight');
-            $el->class($this->wrappers->getValue('inputGroup .floatingLabelHeight'), true);
+            $this->htmlFactory->setClasses($element,'inputGroup .floatingLabelHeight');
+
         }else{
             $style = $this->wrappers->getValue('inputGroup ..height');
-            $el->class($this->wrappers->getValue('inputGroup .height'), true);
+            $this->htmlFactory->setClasses($element,'inputGroup .height');
         }
         if($style)
-            $el->style .= $style;
+            $element->style .= $style;
     }
 
-    private function setBorders(Html $el){
+    private function setBorders(RendererHtml $element): void
+    {
 
         // Každému prvku se přiřadí třídy v $wrappers['inputGroup']['.item']
-        $el->class($this->wrappers->getValue('inputGroup .item'), true);
+        $this->htmlFactory->setClasses($element,'inputGroup .item');
 
         // Pokud není control první nebo poslední v inputGroup, nic nebude zaoblené
         if(!$this->firstInGroup && !$this->lastInGroup)
             return;
         // Uplně první prvek v každé inputGroup je .firstItem
         if($this->firstInGroup && !$this->prevInputGroupItem) {
-            $el->class($this->wrappers->getValue('inputGroup .firstItem'), true);
+            $this->htmlFactory->setClasses($element,'inputGroup .firstItem');
         }
         // U posledního control v inputGroup přiřazujeme .lastItem, pokud je předchozí prvek, tak mu bude zase odebrána
         if($this->lastInGroup){
-            $el->class($this->wrappers->getValue('inputGroup .lastItem'), true);
+            $this->htmlFactory->setClasses($element,'inputGroup .lastItem');
             if($this->prevInputGroupItem)
-                $this->prevInputGroupItem->class($this->wrappers->getValue('inputGroup .lastItem'), false);
+                $this->htmlFactory->setClasses($this->prevInputGroupItem,'inputGroup .lastItem', true);
         }
-        $this->prevInputGroupItem = $el;
-    }
-
-    /**
-     * Získá wrapper, buď zadaný uživatelem (přes option), nebo defaultní z pole $wrappers.
-     * Daný wrapper taky může být neexistující, v tom případě nic nevytváří a vrací $container.
-     * @param string $option option na daném control, které se týká konkrétního wrapperu (co je v $default).
-     * @param string $default cesta k defaultnímu wrapperu v poli $wrappers.
-     * @param Html|null $container kam se vloží vytvořený wrapper. Pokud není zadán, vytvoří se fragment.
-     * @return Html Vytvořený wrapper (přidaný do $container), nebo $container, pokud se wrapper nevytvářel.
-     */
-    protected function getWrapper(string $option, string $default, Html|null $container = null) : Html
-    {
-        if(is_null($container))
-            $container = Html::el();
-        // Získá option na controlu, jehož klíčem je $option.
-        $setting = $this->control->getOption($option);
-        if(is_null($setting) || $setting === true) // null nebo true tu má stejný význam - bere se defaultní wrapper z pole $wrappers;
-            return $this->getDefaultWrapper($default, $container);
-        elseif($setting === false) // false znamená, že se vytvářet nebude.
-            return $container;
-        elseif($setting instanceof Html) { // Pokud je Html, naklonuje se a vloží do $container.
-            $wrapper = clone $setting;
-            $container->addHtml($wrapper);
-            return $wrapper;
-        }
-        // Jinak zbývá string. Buď je v něm stringová reprezentace wrapperu, nebo klíč třetí dimenze v poli $wrappers.
-        // Pokud je v $setting klíč třetí dimenze v poli $wrappers, použije se tento wrapper.
-        if($this->wrappers->isChosenWrapper($default, $setting))
-            return $this->getDefaultWrapper($default, $container, $setting);
-        // Pokud není, je v $setting stringová definice wrapperu.
-        $wrapper = Html::el($setting);
-        $container->addHtml($wrapper);
-        return $wrapper;
-    }
-
-    /**
-     * Získá wrapper $name definovaný v $this->wrappers a vloží ho do $container.
-     * Pokud není zadán $container, vytvoří prázdný Html element.
-     * Pokud neexistuje wrapper, nebo je null, vrací $container.
-     * @param string $name 2-3 řetězce, oddělené mezerou, reprezentující klíče v poli $this->wrappers. Např. 'pair container'.
-     * @param Html|null $container Container, do kterého se vloží vytvořený (pokud) wrapper.
-     * @param string $different3D Pokud chceme u 3D pole vybrat jiný 3tí klíč, než je uveden v $name.
-     * @return Html Vytvořený wrapper, nebo $container pokud nebyl vytvořen.
-     */
-    protected function getDefaultWrapper(string $name, Html $container = null, string $different3D = '') : Html
-    {
-        //Pokud není zadán container, vytvoří prázdný element.
-        $container = $container ?: Html::el();
-        //Načtení z pole $wrappers
-        $wrapper = $this->wrappers->getWrapper($name, $different3D);
-        //V případě, že není wrapper vrací container
-        if(!$wrapper)
-            return $container;
-        //Vytvořený wrapper přidá do containeru
-        $container->addHtml($wrapper);
-        return $wrapper;
+        $this->prevInputGroupItem = $element;
     }
 }

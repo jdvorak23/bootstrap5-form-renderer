@@ -2,6 +2,8 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers;
 
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\HtmlWtf;
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Jdvorak23\Bootstrap5FormRenderer\Wrappers;
 use Nette\Forms\Controls\BaseControl;
 use Nette\Utils\Html;
@@ -12,18 +14,18 @@ use Nette\Utils\Html;
 class FloatingControlRenderer extends StandardControlRenderer
 {
     protected bool $floatingLabelAllowed = true;
-    public function __construct(Wrappers $wrappers, BaseControl $control)
+
+    protected function setRenderer(): void
     {
-        parent::__construct($wrappers, $control);
+        parent::setRenderer();
         // Nastaví placeholder bro bootstrap, placeholder musí být aby fungoval floating label
         if($this->floatingLabel){
             if (is_object($this->control->control) && !array_key_exists("placeholder", $this->control->control->attrs))
-                $this->control->setHtmlAttribute("placeholder", $this->control->getCaption());
+                $this->control->setHtmlAttribute("placeholder", $this->control->getCaption()); // todo instanceof
         }
-
     }
-
-    protected function renderControl(Html $container){
+    protected function renderControl(Html $container): void
+    {
         if($this->floatingLabel) {
             $this->renderParent();
             $this->renderLabel($this->parent);
@@ -31,11 +33,13 @@ class FloatingControlRenderer extends StandardControlRenderer
             $this->renderLabel($this->parent);
             $this->renderParent();
         }
-        $this->renderDescription($this->parent, 'description container');
-        $this->renderErrors($this->parent);
+        $this->renderDescription($this->parent);
+        $this->renderFeedback($this->parent);
     }
-    protected function renderToGroup(Html $container){
-        $this->inputGroupWrapper = $this->getWrapper("wrapper", 'inputGroup wrapper grow', $container);
+    protected function renderToGroup(Html $container): void
+    {
+        //$this->inputGroupElement = $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper grow', $container);
+        $this->renderInputGroupWrapper();
         if($this->floatingLabel) {
             $this->renderParent($this->inputGroupWrapper);
             $this->renderLabel($this->parent);
@@ -43,18 +47,25 @@ class FloatingControlRenderer extends StandardControlRenderer
             $this->renderLabel($this->parent);
             $this->renderParent($this->inputGroupWrapper);
         }
-        $this->renderDescription($this->parent, 'description inputGroupContainer');
-        $this->renderErrors($this->inputGroupWrapper);
+        $this->renderDescription($this->parent);
+        $this->renderFeedback($this->inputGroupWrapper);
     }
-    protected function createParentElement(): Html {
-        if ($this->inputGroup)
+    protected function createInputGroupWrapper(): RendererHtml
+    {
+        if($this->isInputGroup)
+            return $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper grow');
+        return RendererHtml::el();
+    }
+    protected function createParentElement(): RendererHtml
+    {
+        if ($this->isInputGroup)
             return $this->floatingLabel
-                ? $this->getWrapper("parent", 'inputGroup container floating')
-                : $this->getWrapper("parent", 'inputGroup container standard') ;
+                ? $this->htmlFactory->createWrapper("parent", 'inputGroup container floating')
+                : $this->htmlFactory->createWrapper("parent", 'inputGroup container standard') ;
         else
             return $this->floatingLabel
-                ? $this->getWrapper("parent", 'pair floatingLabelContainer')
-                : $this->getWrapper("parent", 'pair container') ;
+                ? $this->htmlFactory->createWrapper("parent", 'container floatingLabel')
+                : $this->htmlFactory->createWrapper("parent", 'container default') ;
     }
 
 }
