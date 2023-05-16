@@ -2,15 +2,11 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers;
 
-use Jdvorak23\Bootstrap5FormRenderer\Wrappers;
-use Nette\Forms\Controls\BaseControl;
-use Nette\Forms\Controls\Button;
+use Jdvorak23\Bootstrap5FormRenderer\HtmlFactory;
 use Nette\Utils\Html;
 
 class GroupRenderer
 {
-    /** @var Wrappers pole standardních wrapperů, předávané konstruktorem. */
-    protected Wrappers $wrappers;
 
     /** Určí se v konstruktoru. Top container, obsahuje celou strukturu prvků Group (nebo všech zbylých, co nejsou v Group). */
     protected RendererHtml $container;
@@ -24,17 +20,18 @@ class GroupRenderer
      * Tedy, že se nebude brát jako default $wrappers['group']['col'] , ale ten dodaný v option.
      * Vytváří se v konstruktoru podle $defaultGroupCol parametru a dále se klonuje. */
     protected ?RendererHtml$defaultGroupCol;
-    protected ?RendererHtml$defaultCol;
 
-    /** Vytváří se podle potřeby - vždy pro první prvek nějaké definované inputGroup, další jsou do něj vkládány. */
-    protected ?RendererHtml $inputGroup = null;
+    /** Reprezentuje aktuální (pokud nějaký je) 'dolní row' wrapper.*/
+    protected ?RendererHtml $row = null;
+
+    protected ?RendererHtml$defaultCol;
 
     /** Vytváří se podle potřeby - vždy pro první button. Pokud je buttonů více za sebou, další jsou vkládány do tohoto wrapperu.
      * Používá se pouze, pokud dané tlačítko není v inputGroup. */
     protected ?RendererHtml $buttonGroup = null;
 
-    /** Reprezentuje aktuální (pokud nějaký je) 'dolní row' wrapper.*/
-    protected ?RendererHtml $row = null;
+    /** Vytváří se podle potřeby - vždy pro první prvek nějaké definované inputGroup, další jsou do něj vkládány. */
+    protected ?RendererHtml $inputGroup = null;
 
     /** Resetuje se vždy pro každý control. Poté, co proběhne metoda getWrapper, je v něm instance toho wrapperu,
      * do kterého má být vložen control (to co se vrací).*/
@@ -44,23 +41,15 @@ class GroupRenderer
      * sem se ukládá nejvyšší wrapper, který ještě nebyl zařazen do $this->container při zpracování metodou getWrapper. */
     protected ?RendererHtml $topWrapper;
 
-    /** Contol, pro který je vytvářena struktura wrapperů. */
-    protected BaseControl $control;
 
-    protected HtmlWtf $htmlFactory;
-    protected HtmlWtf $controlHtmlFactory;
+    /** Control's Html factory */
+    protected HtmlFactory $controlHtmlFactory;
+
     /**
-     * @param Wrappers $wrappers Třída pro obecnou práci s wrappery.
-     * @param Html|string|bool $groupRow Definice 'group row'
-     * @param Html|string|bool|null $defaultGroupCol Definice defaultního 'group col'
+     * @param HtmlFactory $htmlFactory Group's Html factory
      */
-    public function __construct(Wrappers $wrappers, protected array $options)
-                              //  Html|string|bool $groupRow,
-                               // Html|string|bool|null $defaultGroupCol = null)
+    public function __construct(protected HtmlFactory $htmlFactory)
     {
-
-        $this->wrappers = $wrappers;
-        $this->htmlFactory = new HtmlWtf($wrappers, $options);
         $this->container = RendererHtml::el();
         $this->setParentRow();
         $this->setDefaultGroupCol();
@@ -73,14 +62,13 @@ class GroupRenderer
      * Jak a jestli se vytváří, záleží na konkrétním nastavení daného controls a pole $wrappers.
      * Algoritmus běží "odspodu", dle výše uedeného řetězu. Skupina vytvořených wrapperů se buď vloží do již nějakého existujícího wrapperu,
      * nebo je novou "větví" v $this->container.
-     * @param BaseControl $control control, pro které má být vrácen jeho wrapper
-     * @return Html wrapper, do kterého má být vložen daný $control. Wrapper je správně vložen do "horní" stuktury.
+     * @param HtmlFactory $controlHtmlFactory
+     * @return RendererHtml wrapper, do kterého má být vložen daný $control. Wrapper je správně vložen do "horní" stuktury.
      */
-    public function getWrapper(BaseControl $control): RendererHtml
+    public function getWrapper(HtmlFactory $controlHtmlFactory): RendererHtml
     {
         // Při každém vloženém control se zresetují vlastnosti.
-        $this->control = $control;
-        $this->controlHtmlFactory = $control->getOption('htmlFactory');
+        $this->controlHtmlFactory = $controlHtmlFactory;
         $this->wrapper = null;
         $this->topWrapper = null;
 
@@ -93,18 +81,11 @@ class GroupRenderer
             $this->insert($this->inputGroup);
 
         // Pokud control je tlačítko a není v inputGroup.
-        if(!$this->inputGroup && $control instanceof Button) {
+        if(!$this->inputGroup && $this->controlHtmlFactory->options->getOption('type') === 'button') { //$control instanceof Button
             if(!$this->setButtonGroup() && $this->buttonGroup)
                 return $this->buttonGroup;
             elseif($this->buttonGroup)
                 $this->insert($this->buttonGroup);
-            // Pokud je  control druhé a další tlačítko v řadě, přidá se do stávajícího wraperu pro buttons.
-           /* if($this->buttonGroup)
-                return $this->buttonGroup;
-            // Pokud je první, vytvoří se tlačítkový wrapper
-            $this->buttonGroup = $this->wrappers->getWrapper('controls buttons');
-            // A začne vytvářet výsledný strom wrapperů...
-            $this->insert($this->buttonGroup);*/
         }else// Pokud je inputGroup, nebo control není button, reset buttons wrapperu
             $this->buttonGroup = null;
 
@@ -146,7 +127,7 @@ class GroupRenderer
      * tedy vytvoří se už při prvním volání insert při zpracovávání jednotlivého controlu.
      * A v  $this->topWrapper je vždy nejhornější wrapper vytvářené struktury.
      * @param RendererHtml $container kam se vkládá (případně) již existující struktura.
-     * @param RendererHtml|string|null $wrapper pokud je zadán $wrapper vloží se "mezi", tj. vytvoří se $container->$wrapper->existující
+     * @param RendererHtml|null $wrapper pokud je zadán $wrapper vloží se "mezi", tj. vytvoří se $container->$wrapper->existující
      * @return void
      */
     protected function insert(RendererHtml $container, RendererHtml|null $wrapper = null) : void
@@ -163,48 +144,19 @@ class GroupRenderer
         // A topWrapperem se stává nejvyšší prvek, tj. $container (vytváříme odpodu).
         $this->topWrapper = $container;
     }
-
-
-
-    /**
-     * Vrací wrapper 'controls col', nebo option
-     * @return RendererHtml|null
-     */
     protected function getCol(): RendererHtml|null
     {
         return $this->col('col', $this->defaultCol);
-        /*$col = $this->control->getOption('col');
-        if($col === false)
-            $wrapper = null;
-        elseif($col === null || $col === true) {
-            $wrapper = $this->defaultCol ? clone $this->defaultCol : null;
-        } elseif($col instanceof Html)
-            $wrapper = RendererHtml::fromNetteHtml($col);
-        else
-            $wrapper = RendererHtml::el($col);
-        if(!$wrapper)
-            return null;
-        $wrapper->setClasses($this->control->getOption('.col'));
-        return $wrapper;*/
     }
 
     protected function getGroupCol(): RendererHtml|null
     {
         return $this->col('groupCol', $this->defaultGroupCol);
-        /*$col = $this->control->getOption('groupCol');
-        if($col === false)
-            return null;
-        elseif($col === null || $col === true) {
-            return $this->defaultGroupCol ? clone $this->defaultGroupCol : null;
-        } elseif($col instanceof Html)
-            return RendererHtml::fromNetteHtml($col);
-        else
-            return RendererHtml::el($col);*/
     }
 
     protected function col(string $option, RendererHtml|null $default): RendererHtml|null
     {
-        $setting = $this->control->getOption($option);
+        $setting = $this->controlHtmlFactory->options->getOption($option);
         if($setting === false)
             $wrapper = null;
         elseif($setting === null || $setting === true) {
@@ -215,7 +167,8 @@ class GroupRenderer
             $wrapper = RendererHtml::el($setting);
         if(!$wrapper)
             return null;
-        $wrapper->setClasses($this->control->getOption('.' . $option));
+        // Vytváříme ručne, musí se nastavit třídy
+        $wrapper->setClasses($this->controlHtmlFactory->options->getOption('.' . $option));
         return $wrapper;
     }
 
@@ -226,48 +179,31 @@ class GroupRenderer
      */
     private function setDefaultGroupCol(): void
     {
-        $defaultGroupCol = &$this->options['col'];
+        $defaultGroupCol = $this->htmlFactory->options->getOption('col');
 
         if ($defaultGroupCol === false)// Nastavena, že je defaultní - žádný
             $this->defaultGroupCol = null;
         else
         $this->defaultGroupCol = $this->htmlFactory->createWrapper('col', 'group col');
-
-       /* if ($defaultGroupCol === null || $defaultGroupCol === true){ // Není nastaveno a true je ve skutečnosti nesmyslný, nastavylo by default na default :D
-            //$this->isDefaultGroupCol = false; //Není nastavený jiný defaultGroupCol - bude se brát default z wrappers.
-            $this->defaultGroupCol = $this->wrappers->getWrapper('group col');
-            return;
-        }elseif($defaultGroupCol instanceof Html)
-            $this->defaultGroupCol =  RendererHtml::fromNetteHtml($defaultGroupCol);
-        else
-            $this->defaultGroupCol = RendererHtml::el($defaultGroupCol);*/
     }
 
     /**
      * Podle option 'row' na controlu (případně) nastaví $this->row, tj. vytvoří wrapper.
      * @return bool Důležité. Vrací true, pokud byl $this->row nějak přenastaven a false, pokud nebyl.
      */
-    protected function setRow()
+    protected function setRow(): bool
     {
-        $row = $this->control->getOption('row');
+        $row = $this->controlHtmlFactory->options->getOption('row');
         if($row === false) { // Nastavena, že není.
             $this->row = null;
             return true;
         }elseif($row === null) {
             return false; // Nenastavena - bere se podle předchozího control.
         }
-        /*elseif($row === true) //Zde a dále -> Nastaveno, že je nový (buď default, nebo vlastní).
-            $this->row = $this->wrappers->getWrapper('controls row');
-        elseif($row instanceof Html)
-            $this->row = RendererHtml::fromNetteHtml($row);
-        else
-            $this->row = RendererHtml::el($row);*/
         $this->row = $this->controlHtmlFactory->createWrapper('row', 'controls row');
+
         // Tady je tedy nový control-level grid. U tohoto prvního controlu se podívá na 'defaultCol' a případně nastaví:
-
-
-
-        if ($this->control->getOption('defaultCol') === false)// Nastavena, že je defaultní - žádný
+        if ($this->controlHtmlFactory->options->getOption('defaultCol') === false)// Nastavena, že je defaultní - žádný
             $this->defaultCol = null;
         else
             $this->defaultCol =  $this->controlHtmlFactory->createWrapper('defaultCol', 'controls col');
@@ -283,63 +219,49 @@ class GroupRenderer
      */
     protected function setInputGroup(): bool
     {
-        $inputGroup = $this->control->getOption('inputGroup');
+        $inputGroup = $this->controlHtmlFactory->options->getOption('inputGroup');
         if($inputGroup === false) { // Hodnota false ukončuje případně existující inputGroup a nastavuje že tento element v inputGroup není.
             $this->inputGroup = null;
             return true; // InputGroup byla nastavena - na žádnou.
         }elseif($inputGroup === null) { // Hodnota null (nenastaveno) - Pokud je předchozí control v inputGroup, tento je ve stejné.
             if($this->inputGroup) //Pokud je inputGroup
-                $this->control->setOption('inputGroup', true);
+                $this->controlHtmlFactory->options->setOption('inputGroup', true);
             return false; // V tomto případě buď inputGroup není, nebo se použije předchozí - nastavena tedy nebyla.
-        // V tomto a dalších je inputGroup nově nastavena u tohoto elementu (první v inputGroup).
-        }/*elseif($inputGroup === true) // true znamená defaultní wrapper.
-            $this->inputGroup = $this->wrappers->getWrapper('controls inputGroup');
-        elseif($inputGroup instanceof Html) // vlastní wrapper v Html
-            $this->inputGroup = RendererHtml::fromNetteHtml($inputGroup);
-        else
-            $this->inputGroup = RendererHtml::el($inputGroup);*/
+        }
+        // Zde už je inputGroup nově nastavena u tohoto elementu (první v inputGroup).
         $this->inputGroup = $this->controlHtmlFactory->createWrapper('inputGroup', 'controls inputGroup');
-        $this->control->setOption('inputGroup', true);
+        $this->controlHtmlFactory->options->setOption('inputGroup', true);
         return true; // Byla nastavena inputGroup.
     }
     protected function setButtonGroup(): bool
     {
-        $buttonGroup = $this->control->getOption('buttonGroup');
+        $buttonGroup = $this->controlHtmlFactory->options->getOption('buttonGroup');
         if($buttonGroup === false) { // Hodnota false ukončuje případně existující buttonGroup a nastavuje že tento element v buttonGroup není.
             $this->buttonGroup = null;
             return true; // buttonGroup byla nastavena - na žádnou.
         }elseif($buttonGroup === null) { // Hodnota null (nenastaveno) - Pokud je předchozí control v buttonGroup, tento je ve stejné.
             if($this->buttonGroup) // Pokud existuje buttonGroup a není nastaveno, půjde do stejné
-                return false; // V tomto případě sebuttonGroup použije předchozí - nastavena tedy nebyla.
+                return false; // V tomto případě se buttonGroup použije předchozí - nastavena tedy nebyla.
         }
         $this->buttonGroup = $this->controlHtmlFactory->createWrapper('buttonGroup', 'controls buttons');
         return true; // Byla nastavena buttonGroup.
     }
 
-
     /**
-     * $groupRow musí už být předem ošetřen a nesmí být null!
+     * $option 'row' na group musí už být předem ošetřen a nesmí být null!
      * Nastaví $this->parentRow a $this->container
-     * @param Html|string|bool $groupRow false -> žádný parent, true -> defaultní z wrappers['group']['row']
-     * instanceof Html -> použije tuto instanci, string -> použije Html:el($groupRow)
      * @return void
      */
     protected function setParentRow(): void
     {
-        $groupRow = $this->options['row'];
+
+        $groupRow = $this->htmlFactory->options->getOption('row');
 
         if($groupRow === false) { //false = nebude existovat
             $this->parentRow = null;
             return;
         }
         $this->parentRow = $this->htmlFactory->createWrapper('row', 'group row');
-
-      /*  if($groupRow === true) // Standardní wrapper
-            $this->parentRow = $this->wrappers->getWrapper('group row');
-        elseif($groupRow instanceof Html) // Vlastní wrapper Html
-            $this->parentRow = RendererHtml::fromNetteHtml($groupRow);
-        else
-            $this->parentRow = RendererHtml::el($groupRow); // Vlastní wrapper string*/
         // Tady parent row existuje, stává se tedy jako nejvyšší container (ten je jinak fragment z konstruktoru)
         $this->container = $this->parentRow;
     }

@@ -1,7 +1,7 @@
 {
     "name": "jdvorak23/bootstrap5-form-renderer",
     "description": "Bootstrap5 form renderer for Nette",
-    "keywords": ["nette", "form", "renderer"],
+    "keywords": ["nette", "form", "renderer", "bootstrap"],
     "license": ["Unlicense"],
     "homepage" : "https://github.com/jdvorak23/bootstrap5-form-renderer",
     "authors": [
@@ -18,6 +18,9 @@
         }
     },
     "require": {
-        "php": ">=8.0"
+        "php": ">=8.0",
+        "nette/forms": ">=3.1",
+        "nette/component-model": "^3.0",
+        "nette/utils": ">=3.2.5"
     }
 }

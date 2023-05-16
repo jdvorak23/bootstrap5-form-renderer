@@ -1,8 +1,8 @@
 <?php
 /**
- * Části kódu jsou zcela totožné nebo jen mírně upravené od původního Nette\Forms\Rendering\DefaultFormRenderer
- * That file is part of the Nette Framework (https://nette.org)
- * Copyright (c) 2004 David Grudl (https://davidgrudl.com)
+ * Based on https://doc.nette.org/en/forms/rendering#toc-renderer
+ * https://api.nette.org/forms/master/Nette/Forms/Rendering/DefaultFormRenderer.html
+ * Some methods just copied. Thanks Nette!
  */
 declare(strict_types=1);
 
@@ -12,58 +12,26 @@ namespace Jdvorak23\Bootstrap5FormRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\BaseControlRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\GroupRenderer;
-use Jdvorak23\Bootstrap5FormRenderer\Renderers\HtmlWtf;
 use Nette;
+use Nette\Forms\Container;
 use Nette\Forms\ControlGroup;
 use Nette\Forms\Controls\BaseControl;
 use Nette\Forms\Form;
 use Nette\HtmlStringable;
 use Nette\Utils\Html;
+
 /**
- * Funguje na stejném principu jako DefaultFormRenderer.
- * Funkcionalita odd / even, tj. vlastní třída pro .odd elementy zrušena, nemá už podle mě smysl.
- * Původní renderer generuje label pro control vždy, i když je caption null nebo false. Tento v případě těchto hodnot label negeneruje.
- *  Pokud chceme label na nějaký suffix, nastavíme caption na true.
- *  !!V případě, že nastavíme option 'label' na cotrolu (HtmlStringable), bude se brát tento námi dodaný label
- *  a $caption při vytváření nebude bráno v potaz (i kdyby bylo false).
- * -----------------------------------Group options--------------------------------
- * Option 'visual' na Group funguje beze změny - defaultně true, pokud se nastaví false,
- *  případné controls se vykreslí jako by nebyly v Group (na konci formuláře se zbylými controls mimo Group).
- * Option 'container' na Group funguje beze změny - definuje vlastní container,
- *  místo defaultního $wrappers['group']['container']. Html, nebo string pro Html:el(string).
- * Option 'label' na Group beze změny - automaticky vkládáno jako druhý parametr $caption při Form::AddGroup().
- *  !Vždy se vykresluje do $wrappers['group']['label'], i při zadání vlastního HtmlStringable.
- * Option 'embedNext' na Group beze změny, vykreslí další group do této group, tj. do stejného $wrappers['group']['container'].
- * Option 'description' na Group beze změny. Oproti labelu, pokud je zadáno HtmlStringable,
- *  pak ho neobaluje do standardního $wrappers['group']['description'].
- * Nové option 'row' na Group - nastavuje wrapper, který je případně okolo všech elementů v dané Group
- *                              null => nenastaveno, default (podle $row v konstruktoru)
- *                              false => nikdy nebude
- *                              true => bude defaultní z $wrappers['group']['row']
- *                              Html => použije se tento vlastní wrapper
- *                              string => použije se Html::el(string)
- * Nové option 'col' na Group - !smysl! má jen v případě, že existuje předchozí 'row' wrapper, jinak se nikdy negeneruje!
- *  Obalí každý podřízený wrapper do "svého" wrapperu 'col'. Tj. slouží primárne k vytvoření grid, ale může být použito i jinak.
- *                              null,true => vytvoří default wrapper z $wrappers['group']['col']
- *                              false => nebude se defaultně vytvářet pro žádný element v Group
- *                              Html => pro tuto group stanoví tento jako defaultní
- *                              string => použije se Html::el(string) pro tuto group jako defaultní
- *  Pozn. každý podřízený element v tomto Group 'row' si může pro sebe upravit tento 'col', přes option 'groupCol' na jednotlivém control.
- * -----------------------------------Control options--------------------------------
- * Option NextTo předělané
- * Converts a Form into the HTML output.
+ * @property Wrappers $wrappers
  */
 class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
 
     use Nette\SmartObject;
 
-    /** @var Wrappers Je místo původního array $wrappers, funguje na stejném principu. Více info v komentářích třídy Wrappers */
-    public Wrappers $wrappers;
+    /** @var Wrappers Je místo původního array $wrappers, funguje na stejném principu. */
+    protected Wrappers $formWrappers;
 
-    /** @var Nette\Forms\Form */
     protected Form $form;
-
-    public array $defaultGroupOptions = [];
+    public Options $defaultGroupOptions;
     public ControlRenderer $controlRenderer;
 
 
@@ -73,31 +41,12 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
                                 public bool $clientValidation = true,
                                 public bool $novalidate = false)
     {
-        $this->wrappers = new Wrappers();
-    }
-
-    /**
-     * Pomůcka co nastaví na všech controls v $group dané $option na $value.
-     * Nastavuje pouze v případě, že dané option na controlu není nastaveno!
-     * @param ControlGroup $group
-     * @param string $option
-     * @param $value
-     * @return void
-     */
-    public static function setAllControlsInGroup(Nette\Forms\ControlGroup $group, string $option, $value) : void
-    {
-        foreach ($group->getControls() as $control)
-        {
-            if(!$control instanceof BaseControl || $control->getOption('type') === 'hidden')
-                continue;
-            if(is_null($control->getOption($option)))
-                $control->setOption($option, $value);
-        }
+        $this->defaultGroupOptions = new Options();
     }
 
     /**
      * Přiřadí několik nastavení z konstruktoru, jinak beze změny.
-     * @param  string  $mode  'begin', 'errors', 'ownerrors', 'body', 'end' or empty to render all
+     * @param  ?string  $mode  'begin', 'errors', 'ownerrors', 'body', 'end' or empty to render all
      */
     public function render(Nette\Forms\Form $form, ?string $mode = null): string {
         if (!isset($this->form) || $this->form !== $form)
@@ -199,7 +148,7 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
     /**
      * Pouze upraveny wrappery
      */
-    private function doRenderErrors(array $errors, bool $control): string {
+    protected function doRenderErrors(array $errors, bool $control): string {
         if (!$errors) {
             return '';
         }
@@ -223,13 +172,13 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
 
     /**
      * Tady se řeší renderování jednotlivých Groups
-     * Beze změny
+     * Změna generování wrapperů
+     * HtmlStringable label se už nevkládá do 'group label'
      */
     public function renderBody(): string {
 
         $s = $remains = '';
 
-        $defaultContainer = $this->getWrapper('group container');
         $translator = $this->form->getTranslator();
 
         foreach ($this->form->getGroups() as $group) {
@@ -237,44 +186,49 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
             if (!$group->getControls() || !$group->getOption('visual')) {
                 continue;
             }
-            //Container pro groups, tj. fieldset, může být vlastní v option 'container'
-            $container = $group->getOption('container', $defaultContainer);
-            $container = $container instanceof Html ? clone $container : Html::el($container);
+            // HtmlFactory for group
+            $htmlFactory = $this->getHtmlFactory($group);
+
+            $container = $htmlFactory->createWrapper('container', 'group container');
+
             //Id containeru, tj fieldset
             $id = $group->getOption('id');
             if ($id) {
                 $container->id = $id;
             }
+            // Adds pseudoElement, if any
+            $s .= "\n" . $this->getHtmlFactoryFromOption('pseudoBefore', $htmlFactory->options)?->getPseudoContent();
             //StartTag
             $s .= "\n" . $container->startTag();
             //Group label, container v group label
-            $text = $group->getOption('label');
-            if ($text instanceof HtmlStringable) {
-                $s .= $this->getWrapper('group label')->addHtml($text);
-            } elseif ($text != null) { // intentionally ==
+            $label = $htmlFactory->options->getOption('label');
+            if ($label instanceof HtmlStringable) {
+                $s .= $label;
+            } elseif ($label !== null && $label !== false) {
                 if ($translator !== null) {
-                    $text = $translator->translate($text);
+                    $label = $translator->translate($label);
                 }
-
-                $s .= "\n" . $this->getWrapper('group label')->setText($text) . "\n";
+                $s .= "\n" . $htmlFactory->createWrapper('labelContainer', 'group label', '.label')->setText($label) . "\n";
             }
             //Group description
-            $text = $group->getOption('description');
-            if ($text instanceof HtmlStringable) {
-                $s .= $text;
-            } elseif ($text != null) { // intentionally ==
+            $description = $group->getOption('description');
+            if ($description instanceof HtmlStringable) {
+                $s .= $description;
+            } elseif ($description !== null && $description !== false) {
                 if ($translator !== null) {
-                    $text = $translator->translate($text);
+                    $description = $translator->translate($description);
                 }
-
-                $s .= $this->getWrapper('group description')->setText($text) . "\n";
+                $s .= $htmlFactory->createWrapper('descriptionContainer', 'group description', '.description')->setText($description) . "\n";
             }
 
             //Renderování jednotlivých controls v group
             $s .= $this->renderControls($group);
 
             //Když je u nějakého tohle option 'embedNext', vloží další group POD tuhle group tj. fieldsed ve fieldsetu
-            $remains = $container->endTag() . "\n" . $remains;
+            $remains = $container->endTag()
+                . "\n" // Adds pseudoElement, if any
+                . $this->getHtmlFactoryFromOption('pseudoAfter', $htmlFactory->options)?->getPseudoContent()
+                . $remains;
             if (!$group->getOption('embedNext')) {
                 $s .= $remains;
                 $remains = '';
@@ -291,62 +245,104 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
 
     /**
      * Vyrenderování elementů jednotlivých Group nebo zbylých controls.
-     * Kompletně přepsáno.
-     * @param  Nette\Forms\Container|Nette\Forms\ControlGroup  $parent
+     * @param Container|ControlGroup $parent
+     * @return string
      */
-    public function renderControls(Nette\Forms\Container|Nette\Forms\ControlGroup $parent): string
+    public function renderControls(Container|ControlGroup $parent): string
     {
+        // Unification of options for rest controls in From being like Group:
+        $groupHtmlFactory = $parent instanceof Nette\Forms\Container
+            ? $this->getHtmlFactory($this->defaultGroupOptions)
+            : $this->getHtmlFactory($parent);
 
-        $options = $parent instanceof Nette\Forms\Container ? $this->defaultGroupOptions : $parent->getOptions();
-        // Default Group grid, from option if set else from constructor
-        $options['row'] = $options['row'] ?? $this->rows;
+        // Default Group grid, from option if set, else from constructor:
+        if($groupHtmlFactory->options->getOption('row') === null)
+            $groupHtmlFactory->options->setOption('row', $this->rows);
 
-        // Nastavení inputGroup
-        // Dále se nastaví floatingLabels a clientValidation
-        // Nastavení html factory
-        $prevControl = null;
+        // Default settings of some options which BaseControlRenderer needs to work properly:
+        $elementHtmlFactories = [];
+        // Need to save previous element for input group settings
+        $prevHtmlFactory = null;
+        // Need to save if previous iterated element is in input group - to properly set input group
         $inInputGroup = false;
-
-        $defaultFloatingLabels = isset($options['floatingLabels']) ? $options['floatingLabels'] !== false : $this->floatingLabels;
-        $singleMode = isset($options['inputGroupSingleMode']) ? $options['inputGroupSingleMode'] !== false : $this->inputGroupSingleMode;
-
+        // Default setting of floating labels for group. It is taken from group option 'floatingLabels',
+        // or if not set, then from constructor $floatingLabels parameter.
+        $defaultFloatingLabels = $groupHtmlFactory->options->getOption('floatingLabels');
+        $defaultFloatingLabels = $defaultFloatingLabels === null ? $this->floatingLabels : $defaultFloatingLabels !== false;
+        // Similar for 'inputGroupSingleMode' setting
+        $singleMode = $groupHtmlFactory->options->getOption('inputGroupSingleMode');
+        $singleMode = $singleMode === null ? $this->inputGroupSingleMode : $singleMode !== false;
+        // Iterates all controls and set default settings to them
         foreach ($parent->getControls() as $control) {
             if ($control->getOption('rendered') || $control->getOption('type') === 'hidden' || $control->getForm(false) !== $this->form)
                 continue;
-            // Nastavení input group
-            $inInputGroup = $this->setInputGroup($control, $prevControl, $singleMode, $inInputGroup);
-            $prevControl = $control;
-            // Nastavení floatingLabels.
-            // Pokud je option null, nastaví podle globálního $defaultFloatingLabels (buď podle option na Group, nebo podle konstruktoru).
-            $floatingLabel = $control->getOption('floatingLabel') === null ? $defaultFloatingLabels : $control->getOption('floatingLabel') !== false;
-            $control->setOption('floatingLabel', $floatingLabel);
-            // Nastavení clientValidation
-            $control->setOption('clientValidation', $control->getOption('clientValidation') ?? $this->clientValidation);
-            // Nastavení vlastní factory a rendereru
-            $htmlFactory = $control->getOption('htmlFactory');
-            if(!$htmlFactory instanceof HtmlWtf) {
-                $renderer = $control->getOption('renderer');
-                $htmlFactory = $renderer instanceof BaseControlRenderer && $renderer->htmlFactory
-                    ? $renderer->htmlFactory
-                    : new HtmlWtf($this->wrappers);
-                $control->setOption('htmlFactory', $htmlFactory);
+
+            // Get control's HtmlFactory
+            $htmlFactory = $this->getHtmlFactory($control);
+
+            // Pseudo elements Before
+            foreach($this->getPseudoElements('pseudoBefore', $htmlFactory->options) as $element){
+                $inInputGroup = $this->setInputGroup($element, $prevHtmlFactory, $singleMode, $inInputGroup);
+                $prevHtmlFactory = $element;
+                $elementHtmlFactories[] = ['factory' => $element, 'pseudo' => true];
             }
-            // Factory musí mít kde brát options, v případě controlu je lepší vložit samotný control, pak je jistota že je vždy options updated.
-            // Zároveň přepíše na správný control, kdyby přišla nesmyslná htmlFactory od uživatele.
-            $htmlFactory->setOptions($control);
-        }
 
-        $groupRenderer = new GroupRenderer($this->wrappers, $options);
-        foreach ($parent->getControls() as $control) {
-            if ($control->getOption('rendered') || $control->getOption('type') === 'hidden' || $control->getForm(false) !== $this->form)
-                continue;
-            // Model vytvoří strukturu 'horních' wrapperů pro dané control, a vrátí wrapper, do kterého má být vložen.
-            $wrapper = $groupRenderer->getWrapper($control);
-            // Vyrenderuje control do wrapperu.
-            $this->renderControl($control, $wrapper);
+            // Setting up input group
+            $inInputGroup = $this->setInputGroup($htmlFactory, $prevHtmlFactory, $singleMode, $inInputGroup);
+            $prevHtmlFactory = $htmlFactory;
+
+            // Setting floating label for control.
+            $this->setFloatingLabel($htmlFactory, $defaultFloatingLabels);
+
+            // Setting of 'clientValidation'. If not set on control, take value from constructor $clientValidation parameter
+            $clientValidation = $htmlFactory->options->getOption('clientValidation');
+            $clientValidation  = $clientValidation === null ? $this->clientValidation : $clientValidation !== false;
+            $control->setOption('clientValidation', $clientValidation);
+            // Add control to elements array
+            $elementHtmlFactories[] = ['factory' => $htmlFactory, 'pseudo' => false, 'control' => $control];
+
+            // Pseudo elements After
+            foreach($this->getPseudoElements('pseudoAfter', $htmlFactory->options) as $element){
+                $inInputGroup = $this->setInputGroup($element, $prevHtmlFactory, $singleMode, $inInputGroup);
+                $prevHtmlFactory = $element;
+                $elementHtmlFactories[] = ['factory' => $element, 'pseudo' => true];
+            }
+        }
+        // If there are no elements, do not render void group wrappers
+        if(empty($elementHtmlFactories))
+            return '';
+
+        // Finally rendering:
+        $groupRenderer = new GroupRenderer($groupHtmlFactory);
+        foreach($elementHtmlFactories as $element){
+            /**@var HtmlFactory $htmlFactory*/
+            $htmlFactory = $element['factory'];
+            $wrapper = $groupRenderer->getWrapper($htmlFactory);
+            if($element['pseudo']){
+                $wrapper->addHtml($htmlFactory->getPseudoContent());
+            }else{
+                $this->renderControl($element['control'], $wrapper);
+            }
         }
         // Vyrenderuje celou group
         return $groupRenderer->getContainer()->render(0);
+    }
+
+    protected function getPseudoElements(string $option, Options $options): array
+    {
+        $elements = [];
+        $values = $options->getOption($option);
+        if(!is_array($values))
+            $values = [$values];
+        foreach($values as $value){
+            if($value instanceof HtmlFactory) {
+                // init
+                $factory = clone $value;
+                $factory->wrappers = $factory->wrappers ?? $this->wrappers;
+                $elements[] = $factory;
+            }
+        }
+        return $elements;
     }
 
     /**
@@ -354,12 +350,12 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
      * @param BaseControl $control
      * @param Html $container
      */
-    public function renderControl(BaseControl $control, Html $container)
+    protected function renderControl(BaseControl $control, Html $container): void
     {
-        $this->controlRenderer = $this->controlRenderer ?? new ControlRenderer($this->wrappers);
+        $this->controlRenderer = $this->controlRenderer ?? new ControlRenderer();
         $this->controlRenderer->render($control, $container);
     }
-
+//------
     /**
      * Vrací wrapper definovaný v poli $wrappers, reprezentovaný klíči ve stringu oddělené mezerou.
      * V případě, že  wrapper neexistuje, vrací Html::el() (documentFragment)
@@ -371,35 +367,98 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
         return $this->wrappers->getWrapper($name)?: Html::el();
     }
 
-    protected function setInputGroup(BaseControl $control, BaseControl|null $prevControl, bool $singleMode, bool $inInputGroup): bool
+    protected function getHtmlFactory(BaseControl|ControlGroup|Options $for): HtmlFactory
+    {
+        $renderer = $for->getOption('renderer');
+        $htmlFactory = $for->getOption('htmlFactory');
+        if($for instanceof BaseControl && $renderer instanceof BaseControlRenderer && $renderer->htmlFactory){
+            $htmlFactory = clone $renderer->htmlFactory;
+        }elseif(!$htmlFactory instanceof HtmlFactory){
+            $htmlFactory = new HtmlFactory();
+        }else{
+            $htmlFactory = clone $htmlFactory;
+        }
+        if($for instanceof BaseControl && $renderer instanceof BaseControlRenderer){
+            $renderer = clone $renderer;
+            $for->setOption('renderer', $renderer);
+        }
+        $for->setOption('htmlFactory', $htmlFactory);
+        //init
+        $htmlFactory->wrappers = $htmlFactory->wrappers ?? $this->wrappers;
+        $htmlFactory->options->setSourceOptions($for instanceof Options ? $for->getOptions() : $for);
+        return $htmlFactory;
+    }
+
+    protected function getHtmlFactoryFromOption(string $option, Options $options): HtmlFactory|null
+    {
+        $htmlFactory = $options->getOption($option);
+        if(!$htmlFactory instanceof HtmlFactory)
+            return null;
+        //init
+        $htmlFactory = clone $htmlFactory;
+        $htmlFactory->wrappers = $htmlFactory->wrappers ?? $this->wrappers;
+        return $htmlFactory;
+    }
+
+    protected function setFloatingLabel(HtmlFactory $htmlFactory, bool $default): void
+    {
+        // Setting floating label. It is taken from option 'floatingLabel',
+        // or if not set, then from $default.
+        $floatingLabel = $htmlFactory->options->getOption('floatingLabel');
+        $floatingLabel = $floatingLabel  === null ? $default : $floatingLabel !== false;
+        $htmlFactory->options->setOption('floatingLabel', $floatingLabel);
+    }
+
+    /**
+     * Sets all needed for input group.
+     * @param HtmlFactory $htmlFactory
+     * @param HtmlFactory|null $prevHtmlFactory
+     * @param bool $singleMode mode of input group creating, true means every control is in its own input group by default
+     * @param bool $inInputGroup if previous is in input group
+     * @return bool if control is in input group
+     */
+    protected function setInputGroup(HtmlFactory $htmlFactory, HtmlFactory|null $prevHtmlFactory, bool $singleMode, bool $inInputGroup): bool
     {
         // Nastavení inputGroup
-        $inputGroup = $control->getOption('inputGroup');
+        $inputGroup = $htmlFactory->options->getOption('inputGroup');
         // Stavy mohou znamenat něco jiného podle inputGroupSingleMode
         if ($inputGroup === null) { //Pokud je null, tak záleží na předchozím controlu, jestli je nebo není v inputGroup.
             if($singleMode){ // Pokud je null a je singleMode, vytváří zde inputGroup
-                $control->setOption('firstInInputGroup', true);
-                $control->setOption('lastInInputGroup', true);
-                $control->setOption('inputGroup', true); // Přenastavuje option podle reality vykreslování
+                $htmlFactory->options->setOption('firstInInputGroup', true);
+                $htmlFactory->options->setOption('lastInInputGroup', true);
+                $htmlFactory->options->setOption('inputGroup', true); // Přenastavuje option podle reality vykreslování
                 $inInputGroup = true;
             }elseif($inInputGroup) { // Jinak, pokud je v inputGroup, pak předchozí není last, jako last je nastaven aktuálně iterovaný control.
-                $prevControl->setOption('lastInInputGroup', false);
-                $control->setOption('lastInInputGroup', true);
+                $prevHtmlFactory?->options->setOption('lastInInputGroup', false);
+                $htmlFactory->options->setOption('lastInInputGroup', true);
             }
         } elseif ($inputGroup === false) { //Není v inputGroup v každém případě
             $inInputGroup = false;
         }else{ // Pokud je 'inputGroup' nastavena na true, singleMode je zapnuté a je existující inputGroup, pak se do ní vloží
             if($inputGroup === true && $singleMode && $inInputGroup){
-                $prevControl->setOption('lastInInputGroup', false);
-                $control->setOption('lastInInputGroup', true);
-                $control->setOption('inputGroup', null); // Přenastavuje option podle reality vykreslování
+                $prevHtmlFactory?->options->setOption('lastInInputGroup', false);
+                $htmlFactory->options->setOption('lastInInputGroup', true);
+                // Přenastavuje option podle reality vykreslování:
+                $htmlFactory->options->setOption('inputGroup', null);
+                // BaseControl nenastaví null do 'inputGroup', ale unset, musí se přenastavit i v default:
+                $htmlFactory->options->setDefaultOption('inputGroup', null);
             }else { //Jinak je v inputGroup, a je první v této inputGroup - nastavení first a last
-                $control->setOption('firstInInputGroup', true);
-                $control->setOption('lastInInputGroup', true);
+                $htmlFactory->options->setOption('firstInInputGroup', true);
+                $htmlFactory->options->setOption('lastInInputGroup', true);
                 $inInputGroup = true;
             }
         }
         return $inInputGroup;
     }
 
+    public function getWrappers(): Wrappers
+    {
+        $this->formWrappers = $this->formWrappers ?? new Wrappers();
+        return $this->formWrappers;
+    }
+
+    public function setWrappers(Wrappers $wrappers): void
+    {
+        $this->formWrappers = $wrappers;
+    }
 }

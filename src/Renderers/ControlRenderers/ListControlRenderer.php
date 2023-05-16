@@ -5,6 +5,9 @@ namespace Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Nette\Utils\Html;
 
+/**
+ * Used for CheckboxList and RadioList
+ */
 class ListControlRenderer extends BaseControlRenderer
 {
     protected function renderControl(Html $container): void
@@ -18,7 +21,6 @@ class ListControlRenderer extends BaseControlRenderer
 
     protected function renderToGroup(Html $container): void
     {
-        //$this->inputGroupElement = $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper shrink', $container);
         $this->renderInputGroupWrapper();
         $this->renderLabel($this->parent);
         $this->renderParent($this->inputGroupWrapper);
@@ -47,7 +49,7 @@ class ListControlRenderer extends BaseControlRenderer
             if(!$this->element->getName() && $itemWrapper->getName())
                 $this->setFeedbackClasses($itemWrapper, '.list');
             // Třída se přiděluje až tady, vyšší priorita
-            $itemWrapper->setClasses($this->control->getOption('.item'));
+            $itemWrapper->setClasses($this->options->getOption('.item'));
         }
     }
 
@@ -60,7 +62,7 @@ class ListControlRenderer extends BaseControlRenderer
     {
         $this->setFeedbackClasses($this->element, '.list');
         // Třída se dává až tady, má vyšší prioritu.
-        $this->element->setClasses($this->control->getOption('.element'));
+        $this->element->setClasses($this->options->getOption('.element'));
     }
 
     protected function createInputGroupWrapper(): RendererHtml
@@ -91,6 +93,7 @@ class ListControlRenderer extends BaseControlRenderer
     protected function createControlElementItem($key): RendererHtml
     {
         $item = RendererHtml::fromNetteHtml($this->control->getControlPart($key));
+        $this->htmlFactory->setClasses($item, 'control .all');
         $this->htmlFactory->setClasses($item, 'control .checkbox');
         $this->setupControlElement($item);
         return $item;
@@ -101,7 +104,7 @@ class ListControlRenderer extends BaseControlRenderer
         $label = RendererHtml::fromNetteHtml($this->control->getLabelPart($key));
         $this->htmlFactory->setClasses($label, 'label .item');
         // Třídy se přidají ručně, není přes factory
-        $label->setClasses($this->control->getOption('.itemLabel'));
+        $label->setClasses($this->options->getOption('.itemLabel'));
         $container->addHtml($label);
     }
 

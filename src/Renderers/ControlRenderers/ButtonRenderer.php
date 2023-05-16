@@ -6,8 +6,9 @@ use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Nette\Utils\Html;
 
 /**
- * Button je specifický, nemá label, nemá ani error.
+ * Button je specifický, nemá label, nemá ani validation messages.
  * .required, .optional, .all, .error, .noerror - nic z toho nemá pro Button smysl, nepřiřazuje se.
+ * Used for Button (also SubmitButton and ImageButton)
  */
 class ButtonRenderer extends BaseControlRenderer
 {
@@ -18,7 +19,6 @@ class ButtonRenderer extends BaseControlRenderer
     }
     public function renderToGroup(Html $container): void
     {
-       // $this->inputGroupElement = $this->getWrapper("wrapper", 'inputGroup wrapper shrink', $container);
         $this->renderInputGroupWrapper();
         $this->renderParent($this->inputGroupWrapper);
         $this->renderDescription($this->parent);
@@ -30,7 +30,7 @@ class ButtonRenderer extends BaseControlRenderer
             ? $this->htmlFactory->setClasses($this->element, 'control .inputGroupButton')
             : $this->htmlFactory->setClasses($this->element, "control .{$this->element->type}");
         // Tlačítku můžeme přidat vlastní třídu, jako všem controls přes option '.control'
-        $this->element->setClasses($this->control->getOption('.control'));
+        $this->element->setClasses($this->options->getOption('.control'));
     }
     protected function createInputGroupWrapper(): RendererHtml
     {

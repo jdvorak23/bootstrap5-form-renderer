@@ -1,24 +1,27 @@
 <?php
 
-namespace Jdvorak23\Bootstrap5FormRenderer\Renderers;
-use Jdvorak23\Bootstrap5FormRenderer\Wrappers;
-use Nette\Forms\ControlGroup;
-use Nette\Forms\Controls\BaseControl;
+namespace Jdvorak23\Bootstrap5FormRenderer;
+use Jdvorak23\Bootstrap5FormRenderer\Designers\ComponentDesigner;
+use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
 use Nette\Utils\Html;
-use Nette;
-/**
- *
- * @property-read array $options
- */
-class HtmlWtf
-{
-    use Nette\SmartObject;
 
-    protected array|BaseControl|ControlGroup $optionsSource;
-    public function __construct(public Wrappers $wrappers,
-                                array $options = [])
+class HtmlFactory
+{
+    public Options $options;
+
+    public Wrappers|null $wrappers;
+
+    public function __construct(Options|ComponentDesigner|null $options = null,
+                                Wrappers $wrappers = null)
     {
-        $this->optionsSource = $options;
+        $this->wrappers = $wrappers;
+
+        if(!$options)
+            $this->options = new Options();
+        elseif($options instanceof ComponentDesigner) {
+            $this->options = $options->getOptions();
+        }else
+            $this->options = $options;
     }
 
     /**
@@ -33,10 +36,10 @@ class HtmlWtf
     {
         if($classOption === true)
             $classOption = '.' . $option;
-        elseif($classOption === false)
-            $classOption = '';
+        else
+            $classOption = (string) $classOption;
         // Získá option na controlu, jehož klíčem je $option.
-        $setting = &$this->options[$option];
+        $setting = $this->options->getOption($option);
         if($setting === null || $setting === true) { // null nebo true tu má stejný význam - bere se defaultní wrapper z pole $wrappers;
             $wrapper = $this->createDefaultWrapper($default);
             $this->setOptionClasses($wrapper, $classOption);
@@ -67,7 +70,7 @@ class HtmlWtf
     {
         if(!$classOption)
             return $wrapper;
-        $setting = &$this->options[$classOption];
+        $setting = $this->options->getOption($classOption);
         $wrapper->setClasses($setting);
         return $wrapper;
     }
@@ -85,9 +88,7 @@ class HtmlWtf
         //Načtení z pole $wrappers
         $wrapper = $this->wrappers->getWrapper($name, $different3D);
         //V případě, že není wrapper vrací fragment
-        if(!$wrapper)
-            return RendererHtml::el();
-        return RendererHtml::fromNetteHtml($wrapper);
+        return $wrapper ? RendererHtml::fromNetteHtml($wrapper) : RendererHtml::el();
     }
 
     public function createOwn(mixed $content): RendererHtml
@@ -103,13 +104,14 @@ class HtmlWtf
         $element->setClasses($this->wrappers->getValue($name), $reverse);
     }
 
-    public function getOptions(): array
+    public function getPseudoContent(): Html|string
     {
-        return is_array($this->optionsSource) ? $this->optionsSource : $this->optionsSource->getOptions();
-    }
-    public function setOptions(array|BaseControl|ControlGroup $options): void
-    {
-        $this->optionsSource = $options;
+        $content = $this->options->getOption('content');
+        return $content instanceof Html ? clone $content : (string) $content;
     }
 
+    public function __clone(): void
+    {
+        $this->options = clone $this->options;
+    }
 }

@@ -18,28 +18,31 @@ use Nette\Utils\Html;
  *   Např. $wrappers['group']['.row'] zde není definováno, pokud si ho definujeme, automaticky se třídy přiřadí k wrapperu $wrappers['group']['row'].
  * Pravděpodobná je potřeba změny některých wrapperů - vlastní pole $wrappers - stačí si vytvořit potomka této třídy (Wrappers)
  *   a přetížit pole $wrappers (zkopírovat odtud). Následně se přiřadí $renderer->wrappers = new MyWrappers();
+ *
+ * https://github.com/jdvorak23/bootstrap5-form-renderer/wiki/Wrappers
+ * https://github.com/jdvorak23/bootstrap5-form-renderer/wiki/Layout
+ * https://github.com/jdvorak23/bootstrap5-form-renderer/wiki/css
  */
-class Wrappers implements Countable, ArrayAccess
+class Wrappers implements ArrayAccess
 {
     /** @var array definice wrapperů, stejný princip jako u DefaultFormRenderer */
     protected array $wrappers = [
         'form' => [
-            // Funguje stejně jako u DefaultFormRenderer. Pozor, tento wrapper se generuje do formu,
-            //  tedy pokud je zadán, vytvoří se <form><tentoWrapper>...celý obsah formuláře mimo hiddens...</tentoWrapper><hiddens></hiddens></form>
+            // Funguje stejně jako u DefaultFormRenderer. Pozor, tento wrapper se generuje do formu
             'container' => null,
             // Toto je pro errory na celém formu. Errory na jednotlivých controls se řeší pod 'error'
-            'errorContainer' => 'div class="error"', // Wrapper pro všechny chyby na formu.
+            'errorContainer' => 'div class="form-errors"', // Wrapper pro všechny chyby na formu.
             'errorItem' => 'div class="alert alert-danger"', // Wrapper pro jednotlivou chybu.
         ],
         // Třídy a wrappery pro Group, 'row' a 'col' se týká i zbylých controls, co nejsou v Group
         'group' => [
-            'container' => 'fieldset', // Container pro prvky v Group, nejčastěji fieldset.
-            'label' => 'legend class="mb-0 lh-1"', // Wrapper pro label.
-            'description' => 'p', // Wrapper pro description.
+            'container' => 'fieldset class="mb-3"', // Container pro prvky v Group, nejčastěji fieldset.
+            'label' => 'legend class="mb-0 lh-1"', // Wrapper pro label, pouze pokud je label string.
+            'description' => 'p', // Wrapper pro description, pouze pokud je description string.
             // Defaultní grid wrapper na úrovni jednotlivé Group (nebo zbylých controls co nejsou v Group)
             // To, jestli bude generován, závisí na $row z konstruktoru (stanovuje default)
             //  a dále na option 'row' na dané Group - pok je definovaný, bere se tento, jinak defaultní podle konstruktoru
-            'row' => 'div class="row mt-0 gy-3 mb-3"',
+            'row' => 'div class="row g-3"', // mt-0 gy-3 mb-3
             // Defaultní wrapper pro 'row' o řádek výše. Smysl má jen, pokud je tento 'row' existuje.
             'col' => 'div class="col-md-6"',
             // Jakémukoli 2D wrapperu v poli wrappers se automaticky přiřadí třídy,
@@ -54,13 +57,13 @@ class Wrappers implements Countable, ArrayAccess
         // Např. $form->addText(...)->setOption('row', true). Každý další control v dané Group (nebo zbylých controls co v Group nejsou),
         //   bude automaticky vkládán do této grid, obalen 'col' wrapperem.
         // V případě, že chceme mít v grid jenom nějaké controls, na prvním control, které už v tomto grid nechceme,
-        //   nastavíme $form->addText(...)->setOption('row', false) a tento control už v grid nebude.
-        // Nebo voláme $form->addText(...)->setOption('row', true), což má za následek ukončení předchozího grid
+        //   nastavíme $control->setOption('row', false) a tento control už v grid nebude.
+        // Nebo voláme $control->setOption('row', true), což má za následek ukončení předchozího grid
         //   a rovnou nastartování nového.
         'controls' => [
             'row' => 'div class="row gy-3"',
             'col' => 'div class="col-12"',
-            //'.col' => 'col-lg-6',
+            //'.col' => 'mb-3',
             // Všechny controls, které jsou součástí jedné inputGroup, budou vloženy do tohoto jednoho wrapperu.
             // Pokud je nastavený grid systém výše, bude jedna inputGroup právě v jednom wrrapperu 'col' (controls v tom případě patří k sobě).
             // To má za následek, že jakékoli option 'row', nebo 'col' na controlu, který je druhý a další v inputGroup, nemají smysl a budou igrnorovány.
@@ -72,17 +75,17 @@ class Wrappers implements Countable, ArrayAccess
             'buttons' => 'div class="d-flex justify-content-center align-items-end p-3"',
         ],
 
-        // Až potud byly definovány wrappery, někde v kódu definovány jako 'horní'. Tyto wrappery renderuje třída //todo
+        // Až potud byly definovány wrappery, někde v kódu definovány jako 'horní'. Tyto wrappery renderuje třída GroupRenderer
         // Odtud jsou definovány wrappery, občas označené jako 'dolní' - ty už patří ke každému jednotlivému control,
         //   a jsou renderovány jednotlivými renderery, potomky BaseControlRenderer.
 
         // Základní rozdělení při renderování jednotlivého control je v tom, jestli je v inputGroup, nebo není.
         // Defaultně není, pokud chceme control v Bootstrapové(5) inputGroup, nastavíme mu option 'inputGroup'.
-        // Např. $form->addText(...)->setOption('inputGroup', true). Tímto "nastartujeme" inputGroup a každý další
-        //   control v dané Group (nebo zbylých controls co v Group nejsou) bude automaticky přidán do této stejné inputGroup.
-        // Pokud už nějaké control v inputGroup nechceme, nastavíme mu $form->addText(...)->setOption('inputGroup', false).
+        // Např. $control->setOption('inputGroup', true). Tímto "nastartujeme" inputGroup a každý další
+        //   control v dané ControlGroup (nebo zbylých controls co v ControlGroup nejsou) bude automaticky přidán do této stejné inputGroup.
+        // Pokud už nějaké control v inputGroup nechceme, nastavíme mu $control->setOption('inputGroup', false).
         // Pokud nějaké control v inputGroup chceme, ale chceme, aby začínalo novou inpitGroup, prostě mu nastavíme zase
-        //   $form->addText(...)->setOption('inputGroup', true).
+        //   $control->setOption('inputGroup', true).
         // Správné vyrenderování prvku do inputGroup je nejsložitější na layout, tj. v případě inputGroup
         //   se jednomu control renderuje struktura:
         // <wrapper>
@@ -102,34 +105,31 @@ class Wrappers implements Countable, ArrayAccess
             // Toho dosáhneme nejsnáze Bootstrapovými třídami col-*
             // Zde si můžeme definovat jakékoli vlastní "přesnějsí" wrappery (pár jsem jich už přidal - 'xshort' - 'xlong').
             // Pak nám stačí nastavit na jednotlivém control option 'wrapper'. Tj.:
-            // $form->addText('street_number', ...)->setOption('wrapper', 'xshort');
+            // $control('street_number')->setOption('wrapper', 'xshort');
             // Option 'wrapper' má samozřejmě smysl jedině v případe, že je control v inputGroup, jinak je ignorováno.
             'wrapper' => [
                 // Pro controls v dané inputGroup, které se nemají roztahovat.
-                // Tj. Button, Checkbox, RadioList, CheckboxList, UploadControl
-                'shrink' => 'div class=""', //'div class="col-sm-6 col-lg-4 p-0 w-auto"'
+                'shrink' => 'div class=""',
                 // Pro všechny elementy v dané inputGroup, které se mají roztahovat (a tím vyplnit zbávající prostor).
-                // Tj. všechny kromě výše uvedených
                 'grow' => 'div class="flex-fill"',
-                // 'grow' => 'div class="col-sm-6 col-lg-4 flex-fill p-0"',
-                // Vlastní "konkrétní" wrappery:
+                // Own specific wrappers
                 'xxshort' => 'div class="col-6 col-sm-3 col-md-3 col-lg-2"',
                 'xshort' => 'div class="col-6 col-sm-4 col-md-3 col-lg-2"',
                 'short' => 'div class="col-12 col-sm-5 col-md-4 col-lg-3"',
                 'medium' => 'div class="col-12 col-sm-6 col-md-6 col-lg-4"',
                 'long' => 'div class="col-12 col-sm-12 col-md-8 col-lg-6"',
                 'xlong' => '',
-                // Všem vlastním wrapperům přiřadí tuto třídu.
-                '.own' =>  'flex-fill mb-3',
+                // Class appended to all OWN wrappers
+                '.own' =>  'flex-fill',
             ],
             // U 3D wrapperů toto funguje malinko jinak. '.wrapper' se přiřadí všem defaultním, tj 'shrink' nebo 'grow'
             // Ale vlastním wrapperům se toto nepřiřadí, těm se přiřadí .own v 3D poli.
             '.wrapper' => '',
-            // Wrapper pro samotné control, přidává se sem label (před) a description (za).
+            // Parent (container) jednotlivého control elementu, přidává se sem label (před) a description (za).
             'container' => [
                 //Pro všechny, pokud není nastaven floatingLabel
-                'standard' => 'div class="input-group flex-nowrap"', //'div class="input-group flex-nowrap"',
-                //Pokud je nastavený floatingLabel, a control ho podporuje (tj. všechny inputy, select, multiselect, textarea). todo
+                'standard' => 'div class="input-group flex-nowrap"',
+                //Pokud je nastavený floatingLabel, a control ho podporuje (tj. všechny inputy, select, textarea).
                 'floating' => 'div class="form-floating input-group flex-nowrap"',
             ],
             // Třídy pro jednotlivé elementy v inputGroup. Pomocí nich se ručně zaoblují správně rohy.
@@ -180,7 +180,7 @@ class Wrappers implements Countable, ArrayAccess
             // Jednotlivý checkbox či radio mimo inputGroup.
             'listItem' => 'div class="form-check"',
             // Wrapper reprezentující element CheckboxList, RadioList a Checkbox (checkbox se do inputGroup vykresluje stejně jako CheckboxList s jednou item)
-            'listInputGroup' => 'div class="input-group-text gap-2 list-element"',
+            'listInputGroup' => 'div class="input-group-text gap-2 form-control list-element"', // list-element = selector pro javascript
             // Wraper pro jednotlivý checkbox či radio v inputGroup
             'listInputGroupItem' => 'div',
 //Classes - Button only
@@ -196,8 +196,8 @@ class Wrappers implements Countable, ArrayAccess
             // Tyto třídy dostanou všechny jednotlivé elementy, reprezentující control ve formuláři:
 //Classes - general (but not for buttons)
             '.all' => 'all', // Všechny formulářové prvky, mimo buttons.
-            '.required' => 'required',
-            '.optional' => 'optional',
+            '.required' => '',
+            '.optional' => '',
 //Classes - individual
             // A tyto jsou pro zbylé jednotlivé elementy, podle druhu
             // Každý chceckbox
@@ -225,7 +225,7 @@ class Wrappers implements Countable, ArrayAccess
         'label' => [
 //Label classes
             // Třída pro floating label v inputGroup.
-            '.inputGroupFloating' => 'form-label',//TODO add class for z-index 5
+            '.inputGroupFloating' => 'form-label', //TODO add class for z-index 5
             // Třída pro label v inputGroup (bez floating label).
             '.inputGroup' => 'input-group-text',
             // Třída pro floating label mimo inputGroup
@@ -238,12 +238,12 @@ class Wrappers implements Countable, ArrayAccess
             '.class' => 'form-label',
             // Styl pro floating label, který je v inputGroup - z-index se musí nastavit, Bootstrap nesprávně přiděluje.
             // Lepší vytvořit třídu, a tu pak přiřadit do '.inputGroupFloating' o řádek výše.
-            '..inputGroupFloatingStyle' => 'z-index: 5;', //todo
+            '..inputGroupFloatingStyle' => 'z-index: 5;', //TODO after you added  class for z-index 5 to $wrappers['label']['.inputGroupFloating'], comment this line
             // Třída přidáváná k labelu který je k required controlu
-            '.required' => 'required',
+            '.required' => '',
 //Label affixes
             // Řetězce, přidávané před / za element v labelu. //
-            // Vloží před / za každý label, pokud neni definován vlastní label element (setOption('label', Html $element);
+            // Vloží před / za každý label, pokud neni definován vlastní label element (setOption('label', HtmlStringable $element);
             // Prefix přidaný na začátek každého labelu (nikoli do jednotlivých labelů items u ChecboxList a RadioList).
             'prefix' => '',
             // Jako výše, který je required. Vkládá se před případný 'prefix'.
@@ -294,10 +294,10 @@ class Wrappers implements Countable, ArrayAccess
             // U CheckBoxList, RadioList, a Checkbox v inputGroup se proto přidává ještě .listError na prvek,
             // reprezentující element. Pokud tento neexistuje (jako ve standardním wrapperu např. 'control list',
             // bude tato třída přiřazena potomkům, v tomhle případě každému wrapperu 'control listItem' (pokud existuje).
-            '.list' => 'is-invalid on-list',
+            '.list' => 'is-invalid',
             // Vzhledem ke složitějším layoutům, např. v inputGroup, někdy je potřeba, aby tuto třídu měl až rodič,
             // který je v tom případě siblingem error containeru - ten dostane třídu .parentError (pouze, je-li třeba).
-            '.parent' => 'is-invalid on-parent',
+            '.parent' => 'is-invalid',
 //Errors container
             // Wrappery pro všechny chyby na daném control. Do něj budou vypsány jednotlivé errory:
             // Pro errory na control v inputGroup.
@@ -361,7 +361,7 @@ class Wrappers implements Countable, ArrayAccess
      * @param string $name Wrapper reprezentovaný klíči ve stringu oddělené mezerou. např. 'group container' => $wrappers['group']['container']
      * @return mixed nalezenou hodnotu, nebo null, pokud klíče neexistují.
      */
-    public function getValue(string $name)
+    public function getValue(string $name): mixed
     {
         $name = explode(' ', $name, 3);
         if(count($name) == 3)
@@ -431,12 +431,8 @@ class Wrappers implements Countable, ArrayAccess
         return $data instanceof Html ? RendererHtml::fromNetteHtml($data) : (string) $data;
     }
     /*
-     * Dále jsou už jen implementace Countable a ArrayAccess
+     * Dále jsou už jen implementace ArrayAccess
      */
-    public function count() : int
-    {
-        return count($this->wrappers);
-    }
 
     public function offsetExists(mixed $offset) : bool
     {
@@ -448,8 +444,6 @@ class Wrappers implements Countable, ArrayAccess
         return $this->wrappers[$offset];
     }
 
-    // Se vlastně volá jenom při jedno dimensionálním setování
-    // Wrappers[][] už je přes offsetGet
     public function offsetSet(mixed $offset, mixed $value) : void
     {
         if (is_null($offset)) {

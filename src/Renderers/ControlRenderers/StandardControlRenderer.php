@@ -41,6 +41,7 @@ class StandardControlRenderer extends BaseControlRenderer
     }
     protected function setupElement(): void
     {
+        $this->htmlFactory->setClasses($this->element, 'control .all');
         if ($this->element->getName() === 'input')
             $this->htmlFactory->setClasses($this->element, "control .{$this->element->type}");
         elseif(strtolower($this->element->getName()) == 'select')

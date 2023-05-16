@@ -2,14 +2,12 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers;
 
-use Jdvorak23\Bootstrap5FormRenderer\Renderers\HtmlWtf;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\RendererHtml;
-use Jdvorak23\Bootstrap5FormRenderer\Wrappers;
-use Nette\Forms\Controls\BaseControl;
 use Nette\Utils\Html;
 
 /**
- * Renderování control, který podporuje floatingLabel.
+ * Used for SelectBox and TextBase (TextInput and TextArea)
+ * All supports floating labels
  */
 class FloatingControlRenderer extends StandardControlRenderer
 {
@@ -21,7 +19,7 @@ class FloatingControlRenderer extends StandardControlRenderer
         // Nastaví placeholder bro bootstrap, placeholder musí být aby fungoval floating label
         if($this->floatingLabel){
             if (is_object($this->control->control) && !array_key_exists("placeholder", $this->control->control->attrs))
-                $this->control->setHtmlAttribute("placeholder", $this->control->getCaption()); // todo instanceof
+                $this->control->setHtmlAttribute("placeholder", $this->control->getCaption());
         }
     }
     protected function renderControl(Html $container): void
@@ -38,7 +36,6 @@ class FloatingControlRenderer extends StandardControlRenderer
     }
     protected function renderToGroup(Html $container): void
     {
-        //$this->inputGroupElement = $this->htmlFactory->createWrapper("wrapper", 'inputGroup wrapper grow', $container);
         $this->renderInputGroupWrapper();
         if($this->floatingLabel) {
             $this->renderParent($this->inputGroupWrapper);

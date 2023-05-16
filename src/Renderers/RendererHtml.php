@@ -9,22 +9,11 @@ class RendererHtml extends Html
 
     public static function fromNetteHtml(Html $netteHtml): static
     {
-        /*$html = parent::el($netteHtml->getName(), $netteHtml->attrs);
-        foreach ($netteHtml as $key => $child) {
-            $html->insert(null,is_object($child) ? clone $child : $child);
-        }*/
         $html = new static();
         $html->setName($netteHtml->getName());
         $html->attrs = $netteHtml->attrs;
         $html->copyChildren($netteHtml);
         return $html;
-    }
-
-    public function copyChildren(Html $netteHtml): void
-    {
-        foreach ($netteHtml as $key => $child) {
-            $this->children[$key] = is_object($child) ? clone $child : $child;
-        }
     }
 
     public function setClasses(mixed $classes, bool $reverse = false) : void
@@ -65,5 +54,11 @@ class RendererHtml extends Html
         unset($this->attrs['class'][$classes]);
     }
 
+    protected function copyChildren(Html $netteHtml): void
+    {
+        foreach ($netteHtml as $key => $child) {
+            $this->children[$key] = is_object($child) ? clone $child : $child;
+        }
+    }
 
 }

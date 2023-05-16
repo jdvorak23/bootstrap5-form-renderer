@@ -2,14 +2,13 @@
 
 namespace Jdvorak23\Bootstrap5FormRenderer\Renderers;
 
-
+use Jdvorak23\Bootstrap5FormRenderer\HtmlFactory;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\BaseControlRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\ButtonRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\CheckBoxRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\FloatingControlRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\ListControlRenderer;
 use Jdvorak23\Bootstrap5FormRenderer\Renderers\ControlRenderers\StandardControlRenderer;
-use Jdvorak23\Bootstrap5FormRenderer\Wrappers;
 use Nette\Forms\Controls\Button;
 use Nette\Forms\Controls\Checkbox;
 use Nette\Forms\Controls\CheckboxList;
@@ -21,19 +20,18 @@ use Nette;
 
 class ControlRenderer
 {
-    protected Wrappers $wrappers;
-    public function __construct(Wrappers $wrappers)
-    {
-        $this->wrappers = $wrappers;
-    }
 
     /**
-     * Vyrenderuje $control do jeho adekvátních wrapperů, podle nastavení a podle typu control.
+     * Renders control with its default renderer, or with renderer provided through option 'renderer'
      */
     public function render(Nette\Forms\Controls\BaseControl $control, Html $container) : void
     {
-        if($control->getOption('renderer') instanceof BaseControlRenderer){
-            $renderer = $control->getOption('renderer');
+        // HtmlFactory has been already cloned, and is always prepared, no need to check
+        /**@var HtmlFactory $htmlFactory */
+        $htmlFactory = $control->getOption('htmlFactory');
+        if($htmlFactory->options->getOption('renderer') instanceof BaseControlRenderer){
+            // Own renderer has been already cloned
+            $renderer = $htmlFactory->options->getOption('renderer');
         }elseif ($control instanceof CheckboxList || $control instanceof RadioList) {
             $renderer = new ListControlRenderer();
         } elseif ($control instanceof Checkbox) {
@@ -45,9 +43,9 @@ class ControlRenderer
         } else { // MultiSelectBox || UploadControl || BaseControl
             $renderer = new StandardControlRenderer();
         }
-        // Renderování control.
+        // Render of control
         $renderer->render($control, $container);
-        // Control je již vyrenderovaný.
+        // Have to be set
         $control->setOption('rendered', true);
     }
 }
