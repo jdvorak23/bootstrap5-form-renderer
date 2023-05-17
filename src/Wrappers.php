@@ -31,7 +31,8 @@ class Wrappers implements ArrayAccess
             // Funguje stejně jako u DefaultFormRenderer. Pozor, tento wrapper se generuje do formu
             'container' => null,
             // Toto je pro errory na celém formu. Errory na jednotlivých controls se řeší pod 'error'
-            'errorContainer' => 'div class="form-errors"', // Wrapper pro všechny chyby na formu.
+            // Wrapper for all errors on whole form. 'form-errors' is selector for client validation javascript
+            'errorContainer' => 'div class="form-errors"',
             'errorItem' => 'div class="alert alert-danger"', // Wrapper pro jednotlivou chybu.
         ],
         // Třídy a wrappery pro Group, 'row' a 'col' se týká i zbylých controls, co nejsou v Group

@@ -26,5 +26,5 @@ A lot of information and reference [in the wiki](https://github.com/jdvorak23/bo
 Tutorials
 ---------
 
-There is a web with [example forms and tutorials](http://jan-dvorak.cz). You can [download whole web](https://github.com/jdvorak23/bootstrap5-form-renderer-web) 
+There is a web with [example forms and tutorials](http://jan-dvorak.cz). You can [download the whole web](https://github.com/jdvorak23/bootstrap5-form-renderer-web) 
 and instantly play with examples.
