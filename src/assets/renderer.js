@@ -3,8 +3,8 @@
  * This script is part of the Bootstrap5FormRenderer
  * https://github.com/jdvorak23/bootstrap5-form-renderer
  * TWO IMPORTANT SELECTORS:
- * You must add class 'responsive-input-group' to wrappers['controls']['inputGroup'] as a selector for this script
- * It also counts with fact, that you have 'rounded-0' class on every element in input group, as is default in wrappers['inputGroup']['.item']
+ * You must add class 'responsive-input-group' to $wrappers['controls']['inputGroup'] as a selector for this script
+ * It also counts with fact, that you have 'rounded-0' class on every element in input group, as is default in $wrappers['inputGroup']['.item']
  * You can change these, and toggle classes for rounding:
  */
 window.addEventListener('DOMContentLoaded', () => {
