@@ -196,7 +196,7 @@ class Wrappers implements ArrayAccess
             '.image' => '',
             // Tyto třídy dostanou všechny jednotlivé elementy, reprezentující control ve formuláři:
 //Classes - general (but not for buttons)
-            '.all' => 'all', // Všechny formulářové prvky, mimo buttons.
+            '.all' => '', // Všechny formulářové prvky, mimo buttons.
             '.required' => '',
             '.optional' => '',
 //Classes - individual
@@ -328,10 +328,10 @@ class Wrappers implements ArrayAccess
             // U CheckBoxList, RadioList, a Checkbox v inputGroup se proto přidává ještě .listError na prvek,
             // reprezentující element. Pokud tento neexistuje (jako ve standardním wrapperu např. 'control list',
             // bude tato třída přiřazena potomkům, v tomhle případě každému wrapperu 'control listItem' (pokud existuje).
-            '.list' => 'is-valid on-list',
+            '.list' => 'is-valid',
             // Vzhledem ke složitějším layoutům, např. v inputGroup, někdy je potřeba, aby tuto třídu měl až rodič,
             // který je v tom případě siblingem error containeru - ten dostane třídu .parentError (pouze, je-li třeba).
-            '.parent' => 'is-valid on-parent',
+            '.parent' => 'is-valid',
 //Valid feedback container
             // Wrappery pro všechny chyby na daném control. Do něj budou vypsány jednotlivé errory:
             // Pro errory na control v inputGroup.

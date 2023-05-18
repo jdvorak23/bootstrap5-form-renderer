@@ -88,7 +88,7 @@ class HtmlFactory
         //Načtení z pole $wrappers
         $wrapper = $this->wrappers->getWrapper($name, $different3D);
         //V případě, že není wrapper vrací fragment
-        return $wrapper ? RendererHtml::fromNetteHtml($wrapper) : RendererHtml::el();
+        return $wrapper ?: RendererHtml::el();
     }
 
     public function createOwn(mixed $content): RendererHtml

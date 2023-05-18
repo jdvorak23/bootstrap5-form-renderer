@@ -22,6 +22,7 @@ use Nette\Utils\Html;
 
 /**
  * @property Wrappers $wrappers
+ * @property ControlRenderer $controlRenderer
  */
 class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
 
@@ -29,10 +30,11 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
 
     /** @var Wrappers Je místo původního array $wrappers, funguje na stejném principu. */
     protected Wrappers $formWrappers;
+    protected ControlRenderer $formControlRenderer;
 
     protected Form $form;
     public Options $defaultGroupOptions;
-    public ControlRenderer $controlRenderer;
+
 
 
     public function __construct(public bool $rows = false,
@@ -274,6 +276,8 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
         $singleMode = $singleMode === null ? $this->inputGroupSingleMode : $singleMode !== false;
         // Iterates all controls and set default settings to them
         foreach ($parent->getControls() as $control) {
+            if(!$control instanceof BaseControl)
+                throw new \TypeError("Only controls inherited from Nette's BaseControl are supported!");
             if ($control->getOption('rendered') || $control->getOption('type') === 'hidden' || $control->getForm(false) !== $this->form)
                 continue;
 
@@ -352,7 +356,6 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
      */
     protected function renderControl(BaseControl $control, Html $container): void
     {
-        $this->controlRenderer = $this->controlRenderer ?? new ControlRenderer();
         $this->controlRenderer->render($control, $container);
     }
 //------
@@ -456,9 +459,17 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
         $this->formWrappers = $this->formWrappers ?? new Wrappers();
         return $this->formWrappers;
     }
-
     public function setWrappers(Wrappers $wrappers): void
     {
         $this->formWrappers = $wrappers;
+    }
+    public function getControlRenderer(): ControlRenderer
+    {
+        $this->formControlRenderer = $this->formControlRenderer ?? new ControlRenderer();
+        return $this->formControlRenderer;
+    }
+    public function setControlRenderer(ControlRenderer $controlRenderer): void
+    {
+        $this->formControlRenderer = $controlRenderer;
     }
 }
