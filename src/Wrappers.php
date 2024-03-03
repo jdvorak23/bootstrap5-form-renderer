@@ -224,6 +224,8 @@ class Wrappers implements ArrayAccess
             '.url' => 'form-control',
         ],
         'label' => [
+            'voidLabel' => 'div class="mb-2"',
+            'voidLabelContent' => 'span class="me-1"',
 //Label classes
             // Třída pro floating label v inputGroup.
             '.inputGroupFloating' => 'form-label', //TODO add class for z-index 5
@@ -302,19 +304,19 @@ class Wrappers implements ArrayAccess
 //Errors container
             // Wrappery pro všechny chyby na daném control. Do něj budou vypsány jednotlivé errory:
             // Pro errory na control v inputGroup.
-            'inputGroup' => 'div class="invalid-feedback mx-1"',
+            'inputGroup' => 'div class="invalid-feedback px-1"',
             // Pro errory na control s floatingLabel (nikoli v inputGroup).
-            'floatingLabel' => 'div class="invalid-feedback mx-1"',
+            'floatingLabel' => 'div class="invalid-feedback px-1"',
             // Pro všechny zbylé.
-            'container' => 'div class="invalid-feedback mx-1"', //wrapper error na controlu
+            'container' => 'div class="invalid-feedback px-1"', //wrapper error na controlu
 //Error item
             // Elementy, reprezentující jednotlivou chybu (do nich bude vypsán text erroru):
             // Pro errory na control v inputGroup.
-            'inputGroupItem' => 'span class="me-1"',
+            'inputGroupItem' => 'span class=""',
             // Pro errory na control s floatingLabel (nikoli v inputGroup).
-            'floatingLabelItem' => 'span class="me-1"',
+            'floatingLabelItem' => 'span class=""',
             // Pro všechny zbylé.
-            'item' => 'span class="me-1"',
+            'item' => 'span class=""',
         ],
         // Týká se errorů na jednotlivých controls.
         'valid' => [
@@ -335,21 +337,21 @@ class Wrappers implements ArrayAccess
 //Valid feedback container
             // Wrappery pro všechny chyby na daném control. Do něj budou vypsány jednotlivé errory:
             // Pro errory na control v inputGroup.
-            'inputGroup' => 'div class="valid-feedback mx-1"',
+            'inputGroup' => 'div class="valid-feedback px-1"',
             // Pro errory na control s floatingLabel (nikoli v inputGroup).
-            'floatingLabel' => 'div class="valid-feedback mx-1"',
+            'floatingLabel' => 'div class="valid-feedback px-1"',
             // Pro všechny zbylé.
-            'container' => 'div class="valid-feedback mx-1"', //wrapper error na controlu
+            'container' => 'div class="valid-feedback px-1"', //wrapper error na controlu
 //Valid feedback item
             // Elementy, reprezentující jednotlivou chybu (do nich bude vypsán text erroru):
             // Pro errory na control v inputGroup.
-            'inputGroupItem' => 'span class="me-1"',
+            'inputGroupItem' => 'span class=""',
             // Pro errory na control s floatingLabel (nikoli v inputGroup).
-            'floatingLabelItem' => 'span class="me-1"',
+            'floatingLabelItem' => 'span class=""',
             // Pro všechny zbylé.
-            'item' => 'span class="me-1"',
+            'item' => 'span class=""',
 //Valid feedback default message
-            'message' => 'It looks good.',
+            'message' => null,
         ],
         'hidden' => [
             'container' => null,

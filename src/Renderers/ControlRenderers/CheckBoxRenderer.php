@@ -78,6 +78,16 @@ class CheckBoxRenderer extends BaseControlRenderer
         return RendererHtml::el();
     }
 
+    protected function setupInputGroupWrapper(): void
+    {
+        if (!$this->floatingLabel && !$this->labelInInputGroup) {
+            $this->inputGroupWrapper->addHtml($this->createVoidLabel());
+        }
+        if (!$this->floatingLabel && $this->labelInInputGroup && $this->options->getOption('forceVoidLabel') === true) {
+            $this->inputGroupWrapper->addHtml($this->createVoidLabel());
+        }
+    }
+
     protected function createParentElement(): RendererHtml
     {
         return $this->isInputGroup
@@ -92,8 +102,9 @@ class CheckBoxRenderer extends BaseControlRenderer
 
     public function renderLabel(Html $container)  : void
     {
-        if(!$this->label)
+        if (!$this->label) {
             return;
+        }
         $this->htmlFactory->setClasses($this->label,'label .checkbox');
         $container->addHtml($this->label);
         $this->setupLabel();

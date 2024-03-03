@@ -22,7 +22,7 @@ class ListControlRenderer extends BaseControlRenderer
     protected function renderToGroup(Html $container): void
     {
         $this->renderInputGroupWrapper();
-        $this->renderLabel($this->parent);
+        $this->renderLabel($this->labelInInputGroup || $this->floatingLabel ? $this->parent : $this->inputGroupWrapper);
         $this->renderParent($this->inputGroupWrapper);
         $this->renderItems();
         $this->renderDescription($this->parent);

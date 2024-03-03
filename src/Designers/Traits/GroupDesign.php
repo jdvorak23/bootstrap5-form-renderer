@@ -58,6 +58,18 @@ trait GroupDesign
     }
 
     /**
+     * Set label being / not being part of input group for every control in ControlGroup
+     * Can be overriden on every control by option 'labelInInputGroup'
+     * @param bool $labelsInInputGroup option 'labelsInInputGroup'
+     * @return $this
+     */
+    public function setLabelsInInputGroup(bool $labelsInInputGroup): static
+    {
+        $this->setOption('labelsInInputGroup', $labelsInInputGroup);
+        return $this;
+    }
+
+    /**
      * When true, every control in ControlGroup will be automatically in new input group
      * When false, standard input group behaviour
      * @param bool $inputGroupSingleMode option 'inputGroupSingleMode'

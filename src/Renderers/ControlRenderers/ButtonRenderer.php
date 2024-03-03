@@ -39,6 +39,16 @@ class ButtonRenderer extends BaseControlRenderer
         return RendererHtml::el();
     }
 
+    protected function setupInputGroupWrapper(): void
+    {
+        if (!$this->floatingLabel && !$this->labelInInputGroup) {
+            $this->inputGroupWrapper->addHtml($this->createVoidLabel());
+        }
+        if (!$this->floatingLabel && $this->labelInInputGroup && $this->options->getOption('forceVoidLabel') === true) {
+            $this->inputGroupWrapper->addHtml($this->createVoidLabel());
+        }
+    }
+
     protected function createParentElement(): RendererHtml
     {
         return $this->isInputGroup

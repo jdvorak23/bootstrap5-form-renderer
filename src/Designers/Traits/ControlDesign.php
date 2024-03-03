@@ -73,6 +73,57 @@ trait ControlDesign
         $this->setOption('floatingLabel', $floatingLabel);
         return $this;
     }
+
+    /**
+     * Set label being / not being part of input group for control
+     * @param bool $labelInInputGroup option 'labelInInputGroup'
+     * @return $this
+     */
+    public function setLabelInInputGroup(bool $labelInInputGroup): static
+    {
+        $this->setOption('labelInInputGroup', $labelInInputGroup);
+        return $this;
+    }
+
+    /**
+     * Sets a void label. It's automatically used to fill space when label is not generated
+     * (is null or structure doesn't have it, like checkbox)
+     * when control is in input group and 'labelInInputGroup' is false and 'floatingLabel' is false
+     * When 'labelInInputGroup' is true, you can force creating this void label by option 'forceVoidLabel'
+     * Default wrapper is **$wrappers['label']['voidLabel']**
+     * @param bool|Html|string|null $voidLabel option 'voidLabel'
+     * @return $this
+     */
+    public function setVoidLabel(null|bool|Html|string $voidLabel): static
+    {
+        $this->setOption('voidLabel', $voidLabel);
+        return $this;
+    }
+
+    /**
+     * Sets content of 'voidLabel'
+     * Default wrapper is **$wrappers['label']['voidLabelContent']**
+     * @param bool|Html|string|null $voidLabelContent option 'voidLabelContent'
+     * @return $this
+     */
+    public function setVoidLabelContent(null|bool|Html|string $voidLabelContent): static
+    {
+        $this->setOption('voidLabelContent', $voidLabelContent);
+        return $this;
+    }
+
+    /**
+     * This have sense only in case when there is input group, 'floatingLabel' is false and 'labelInInputGroup' is true
+     * In that case, 'voidLabel' structure will be generated if this option is set to 'true'
+     * @param bool $forceVoidLabel option 'forceVoidLabel'
+     * @return $this
+     */
+    public function setForceVoidLabel(bool $forceVoidLabel): static
+    {
+        $this->setOption('forceVoidLabel', $forceVoidLabel);
+        return $this;
+    }
+
     /**
      * Set client validation on given control on / off
      * When true, validation messages containers are generated always (prepared for validation javascript)

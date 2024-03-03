@@ -39,6 +39,8 @@ abstract class BaseControlRenderer
     protected bool $firstInGroup;
     protected bool $lastInGroup;
 
+    protected bool $labelInInputGroup;
+
     /* V základním nastavení control floating label nepodporuje */
     protected bool $floatingLabelAllowed = false;
 
@@ -88,9 +90,11 @@ abstract class BaseControlRenderer
     protected function setRenderer(): void
     {
         // Option 'floatingLabel' je vždy bool, ošetřeno v rendereru.
-        $this->floatingLabel = $this->options->getOption('floatingLabel')  === true;
+        $this->floatingLabel = $this->options->getOption('floatingLabel') === true;
         // Option 'inputGroup' je vždy bool, ošetřeno v ControlWrappers.
-        $this->isInputGroup = $this->options->getOption('inputGroup')  === true;
+        $this->isInputGroup = $this->options->getOption('inputGroup') === true;
+        // Option 'labelInInputGroup' je vždy bool, ošetřeno v rendereru.
+        $this->labelInInputGroup = $this->options->getOption('labelInInputGroup') === true;
         // Zbylé 2 jsou buď true/false, nebo neexistují (neměly by).
         $this->firstInGroup = $this->options->getOption('firstInInputGroup') === true;
         $this->lastInGroup = $this->options->getOption('lastInInputGroup') === true;
@@ -235,6 +239,12 @@ abstract class BaseControlRenderer
     }
     protected function setupInputGroupWrapper(): void
     {
+        if (!$this->label && !$this->floatingLabel && !$this->labelInInputGroup) {
+            $this->inputGroupWrapper->addHtml($this->createVoidLabel());
+        }
+        if (!$this->floatingLabel && $this->labelInInputGroup && $this->options->getOption('forceVoidLabel') === true) {
+            $this->inputGroupWrapper->addHtml($this->createVoidLabel());
+        }
     }
 
 //---------------------------------------- label element -----------------------------------------
@@ -262,9 +272,15 @@ abstract class BaseControlRenderer
             $this->controlLabel = $this->htmlFactory->createOwn((string) $label);
             return $this->controlLabel;
         }
-        // Pokud je caption implicitně nastaveno na false, nebo null (default), pak nepřidáváme element.
-        if($this->control->caption === false || is_null($this->control->caption))
+        // Pokud je caption implicitně nastaveno na false, pak nepřidáváme element
+        if ($this->control->caption === false) {
             return null;
+        }
+        //  Pokud je null
+        if ($this->control->caption === null) {
+            return null;
+        }
+
         //Pokud je true, vložíme prázdný řetězec.
         elseif($this->control->caption === true)
             $this->control->caption = '';
@@ -288,6 +304,17 @@ abstract class BaseControlRenderer
         return RendererHtml::fromNetteHtml($this->control->getLabel());
     }
 
+    protected function createVoidLabel(): RendererHtml
+    {
+        $voidLabel = $this->htmlFactory->createWrapper('voidLabel', 'label voidLabel', false);
+        if ($voidLabel->getName()) {
+            $voidLabelContent = $this->htmlFactory->createWrapper('voidLabelContent', 'label voidLabelContent', false);
+            $voidLabel->addHtml($voidLabelContent);
+        }
+
+        return $voidLabel;
+    }
+
     /**
      * Vloží label do zadaného containeru
      * @param Html $container kam se vloží label
@@ -296,33 +323,50 @@ abstract class BaseControlRenderer
     protected function renderLabel(Html $container): void
     {
         // Pokud není element labelu, nerenderuje se.
-        if(!$this->label)
+        if (!$this->label) {
             return;
+        }
+
         // Přidělení tříd a stylu labelu, podle toho jestli je v inputGroup a jestli je label floating label.
         if($this->isInputGroup){
-            // Pokud je to floating label, a je v inputGroup, přiděluje se i styl na z-index:5,
-            // protože to Bootstrap5 podcenil - pokud je floating label zároveň v inputGroup, nefunguje bez toho správně (protože to dávám do 2 input-group :d)
-            // A do containeru se nevkládá přes renderHtmlElement, protože není součástí "lajny" inputGroup, tj. nerenderuje se standardně.
-            if($this->floatingLabelAllowed && $this->floatingLabel){
+            $this->renderLabelToInputGroup($container);
+        }else{
+            if ($this->floatingLabelAllowed && $this->floatingLabel) {
+                $this->htmlFactory->setClasses($this->label, 'label .floatingLabel');
+            } else {
+                $this->htmlFactory->setClasses($this->label, 'label .class');
+            }
+            $container->addHtml($this->label);
+        }
+        //Nakonec je voláno obecné nastavení labelu.
+        $this->setupLabel();
+    }
+
+    private function renderLabelToInputGroup(Html $container): void
+    {
+        if ($this->floatingLabel) {
+            if ($this->floatingLabelAllowed && !$this->labelInInputGroup) {
+                // Pokud je to floating label, a je v inputGroup, přiděluje se i styl na z-index:5,
+                // protože to Bootstrap5 podcenil - pokud je floating label zároveň v inputGroup, nefunguje bez toho správně (protože to dávám do 2 input-group :d)
+                // A do containeru se nevkládá přes renderHtmlElement, protože není součástí "lajny" inputGroup, tj. nerenderuje se standardně.
                 $this->htmlFactory->setClasses($this->label, 'label .inputGroupFloating');
                 $style = $this->wrappers->getValue('label ..inputGroupFloatingStyle');
                 if($style && is_string($style))
                     $this->label->style .= $style;
                 $container->addHtml($this->label);
-            }else {
-                //Třída pro label v inputGroup (bez floatingLabel)
-                $this->htmlFactory->setClasses($this->label,'label .inputGroup');
-                $this->renderAndSetupHtmlElement($this->label, $container);
+                return;
             }
-        }else{
-            if($this->floatingLabelAllowed && $this->floatingLabel)
-                $this->htmlFactory->setClasses($this->label,'label .floatingLabel');
-            else
-                $this->htmlFactory->setClasses($this->label,'label .class');
+            $this->htmlFactory->setClasses($this->label,'label .inputGroup');
             $this->renderAndSetupHtmlElement($this->label, $container);
+            return;
         }
-        //Nakonec je voláno obecné nastavení labelu.
-        $this->setupLabel();
+        if ($this->labelInInputGroup) {
+            $this->htmlFactory->setClasses($this->label,'label .inputGroup');
+            $this->renderAndSetupHtmlElement($this->label, $container);
+            return;
+        }
+        $this->htmlFactory->setClasses($this->label,'label .class');
+        $container->addHtml($this->label);
     }
     protected function setupLabel(): void
     {

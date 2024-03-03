@@ -17,7 +17,7 @@ class FloatingControlRenderer extends StandardControlRenderer
     {
         parent::setRenderer();
         // Nastaví placeholder bro bootstrap, placeholder musí být aby fungoval floating label
-        if($this->floatingLabel){
+        if($this->floatingLabel && !$this->labelInInputGroup) {
             if (is_object($this->control->control) && !array_key_exists("placeholder", $this->control->control->attrs))
                 $this->control->setHtmlAttribute("placeholder", $this->control->getCaption());
         }
@@ -38,10 +38,16 @@ class FloatingControlRenderer extends StandardControlRenderer
     {
         $this->renderInputGroupWrapper();
         if($this->floatingLabel) {
-            $this->renderParent($this->inputGroupWrapper);
-            $this->renderLabel($this->parent);
+            if ($this->labelInInputGroup) {
+                $this->renderLabel($this->parent);
+                $this->renderParent($this->inputGroupWrapper);
+            } else {
+                $this->renderParent($this->inputGroupWrapper);
+                $this->renderLabel($this->parent);
+            }
+
         }else{
-            $this->renderLabel($this->parent);
+            $this->renderLabel($this->labelInInputGroup ? $this->parent : $this->inputGroupWrapper);
             $this->renderParent($this->inputGroupWrapper);
         }
         $this->renderDescription($this->parent);
@@ -55,14 +61,15 @@ class FloatingControlRenderer extends StandardControlRenderer
     }
     protected function createParentElement(): RendererHtml
     {
-        if ($this->isInputGroup)
-            return $this->floatingLabel
-                ? $this->htmlFactory->createWrapper("parent", 'inputGroup container floating')
-                : $this->htmlFactory->createWrapper("parent", 'inputGroup container standard') ;
-        else
+        if ($this->isInputGroup) {
+            return (!$this->floatingLabel || $this->labelInInputGroup)
+                ? $this->htmlFactory->createWrapper("parent", 'inputGroup container standard')
+                : $this->htmlFactory->createWrapper("parent", 'inputGroup container floating');
+        } else {
             return $this->floatingLabel
                 ? $this->htmlFactory->createWrapper("parent", 'container floatingLabel')
-                : $this->htmlFactory->createWrapper("parent", 'container default') ;
+                : $this->htmlFactory->createWrapper("parent", 'container default');
+        }
     }
 
 }

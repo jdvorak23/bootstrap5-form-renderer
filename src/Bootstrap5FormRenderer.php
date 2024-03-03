@@ -41,7 +41,8 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
                                 public bool $floatingLabels = false,
                                 public bool $inputGroupSingleMode = false,
                                 public bool $clientValidation = true,
-                                public bool $novalidate = false)
+                                public bool $novalidate = false,
+                                public bool $labelsInInputGroup = false)
     {
         $this->defaultGroupOptions = new Options();
     }
@@ -269,11 +270,11 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
         $inInputGroup = false;
         // Default setting of floating labels for group. It is taken from group option 'floatingLabels',
         // or if not set, then from constructor $floatingLabels parameter.
-        $defaultFloatingLabels = $groupHtmlFactory->options->getOption('floatingLabels');
-        $defaultFloatingLabels = $defaultFloatingLabels === null ? $this->floatingLabels : $defaultFloatingLabels !== false;
+        $defaultFloatingLabels = $this->getBoolOption('floatingLabels', $groupHtmlFactory, $this->floatingLabels);
         // Similar for 'inputGroupSingleMode' setting
-        $singleMode = $groupHtmlFactory->options->getOption('inputGroupSingleMode');
-        $singleMode = $singleMode === null ? $this->inputGroupSingleMode : $singleMode !== false;
+        $singleMode = $this->getBoolOption('inputGroupSingleMode', $groupHtmlFactory, $this->inputGroupSingleMode);
+        // Similar for 'labelsInInputGroup' setting
+        $labelsInInputGroup = $this->getBoolOption('labelsInInputGroup', $groupHtmlFactory, $this->labelsInInputGroup);
         // Iterates all controls and set default settings to them
         foreach ($parent->getControls() as $control) {
             if(!$control instanceof BaseControl)
@@ -285,10 +286,10 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
             $htmlFactory = $this->getHtmlFactory($control);
 
             // Pseudo elements Before
-            foreach($this->getPseudoElements('pseudoBefore', $htmlFactory->options) as $element){
-                $inInputGroup = $this->setInputGroup($element, $prevHtmlFactory, $singleMode, $inInputGroup);
-                $prevHtmlFactory = $element;
-                $elementHtmlFactories[] = ['factory' => $element, 'pseudo' => true];
+            foreach($this->getPseudoElements('pseudoBefore', $htmlFactory->options) as $elementHtmlFactory){
+                $inInputGroup = $this->setInputGroup($elementHtmlFactory, $prevHtmlFactory, $singleMode, $inInputGroup);
+                $prevHtmlFactory = $elementHtmlFactory;
+                $elementHtmlFactories[] = ['factory' => $elementHtmlFactory, 'pseudo' => true];
             }
 
             // Setting up input group
@@ -296,20 +297,20 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
             $prevHtmlFactory = $htmlFactory;
 
             // Setting floating label for control.
-            $this->setFloatingLabel($htmlFactory, $defaultFloatingLabels);
+            $this->fillBoolOption('floatingLabel', $htmlFactory, $defaultFloatingLabels);
+            // Setting if label is in input gorup
+            $this->fillBoolOption('labelInInputGroup', $htmlFactory, $labelsInInputGroup);
 
             // Setting of 'clientValidation'. If not set on control, take value from constructor $clientValidation parameter
-            $clientValidation = $htmlFactory->options->getOption('clientValidation');
-            $clientValidation  = $clientValidation === null ? $this->clientValidation : $clientValidation !== false;
-            $control->setOption('clientValidation', $clientValidation);
+            $this->fillBoolOption('clientValidation', $htmlFactory, $this->clientValidation);
             // Add control to elements array
             $elementHtmlFactories[] = ['factory' => $htmlFactory, 'pseudo' => false, 'control' => $control];
 
             // Pseudo elements After
-            foreach($this->getPseudoElements('pseudoAfter', $htmlFactory->options) as $element){
-                $inInputGroup = $this->setInputGroup($element, $prevHtmlFactory, $singleMode, $inInputGroup);
-                $prevHtmlFactory = $element;
-                $elementHtmlFactories[] = ['factory' => $element, 'pseudo' => true];
+            foreach($this->getPseudoElements('pseudoAfter', $htmlFactory->options) as $elementHtmlFactory){
+                $inInputGroup = $this->setInputGroup($elementHtmlFactory, $prevHtmlFactory, $singleMode, $inInputGroup);
+                $prevHtmlFactory = $elementHtmlFactory;
+                $elementHtmlFactories[] = ['factory' => $elementHtmlFactory, 'pseudo' => true];
             }
         }
         // If there are no elements, do not render void group wrappers
@@ -403,13 +404,32 @@ class Bootstrap5FormRenderer implements Nette\Forms\FormRenderer {
         return $htmlFactory;
     }
 
-    protected function setFloatingLabel(HtmlFactory $htmlFactory, bool $default): void
+    /**
+     * None of options is required. For true / false only options we sometime need to set these not set (null) options to some default value
+     * Also, when value of option should be only true / false this converts other than strict false values to boolean true
+     * @param string $option name of the option
+     * @param HtmlFactory $htmlFactory
+     * @param bool $default
+     * @return void
+     */
+    protected function fillBoolOption(string $option, HtmlFactory $htmlFactory, bool $default): void
     {
-        // Setting floating label. It is taken from option 'floatingLabel',
-        // or if not set, then from $default.
-        $floatingLabel = $htmlFactory->options->getOption('floatingLabel');
-        $floatingLabel = $floatingLabel  === null ? $default : $floatingLabel !== false;
-        $htmlFactory->options->setOption('floatingLabel', $floatingLabel);
+        $value = $this->getBoolOption($option, $htmlFactory, $default);
+        $htmlFactory->options->setOption($option, $value);
+    }
+
+    /**
+     * Get bool from option  which is intended to be boolean. If it is not set (null), default will be taken
+     * All other values than false and null are converted to true
+     * @param string $option
+     * @param HtmlFactory $htmlFactory
+     * @param bool $default if option value is null, it returns $default
+     * @return bool
+     */
+    protected function getBoolOption(string $option, HtmlFactory $htmlFactory, bool $default): bool
+    {
+        $optionValue = $htmlFactory->options->getOption($option);
+        return $optionValue === null ? $default : $optionValue !== false;
     }
 
     /**

@@ -22,7 +22,7 @@ class StandardControlRenderer extends BaseControlRenderer
     protected function renderToGroup(Html $container): void
     {
         $this->renderInputGroupWrapper();
-        $this->renderLabel($this->parent);
+        $this->renderLabel($this->labelInInputGroup || $this->floatingLabel ? $this->parent : $this->inputGroupWrapper);
         $this->renderParent($this->inputGroupWrapper);
         $this->renderDescription($this->parent);
         $this->renderFeedback($this->inputGroupWrapper);
