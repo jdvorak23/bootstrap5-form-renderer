@@ -357,6 +357,42 @@ class Wrappers implements ArrayAccess
             'container' => null,
         ],
     ];
+    
+    public function __construct()
+    {
+        bdump(array_values(array_unique($this->getClasses($this->wrappers))));
+    }
+    
+    private function getClasses(array $from)
+    {
+        $classes = [];
+        foreach ($from as $key => $value) {
+            if (is_array($value)) {
+                $newClasses = $this->getClasses($value);
+                if ($newClasses) {
+                    $classes = array_merge($classes, $newClasses);
+                }
+
+            } else {
+                if (str_starts_with($key, '.') && !str_starts_with($key, '..')) {
+                    $classString = is_string($value) && $value ? $value : null;
+                    if ($classString) {
+                        $classes = array_merge($classes, explode(' ', $classString));
+                    }
+
+                } elseif (is_string($value) && str_contains($value, 'class="')) {
+                    $startPos = strpos($value, 'class="') + strlen('class="');
+                    $endPos = strpos($value, '"', $startPos);
+                    $classString = (substr($value, $startPos, $endPos - $startPos));
+                    if ($classString) {
+                        $classes = array_merge($classes, explode(' ',$classString));
+                    }
+
+                }
+            }
+        }
+        return $classes;
+    }
 
     /**
      * Vrátí hodnotu v poli $wrappers definovanu klíči oddělenými mezerou v parametru $name.
