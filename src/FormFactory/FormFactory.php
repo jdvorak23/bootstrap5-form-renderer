@@ -42,12 +42,18 @@ abstract class FormFactory
 	 */
 	protected function success(Form $form, ArrayHash $values): void
 	{}
+
 	/*
 	 * Implement to inject dependencies in create method
 	 */
 	//protected function inject(){}
 
 
+	/**
+	 * All parameters must be named
+	 * @param ...$parameters
+	 * @return Form
+	 */
 	public function create(... $parameters): Form
 	{
 		$form = new Form();
